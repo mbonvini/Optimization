@@ -59,5 +59,8 @@ dymosim
 *.jmu
 *.fmu
 *.jmux
+*.c
+*.o
+*.dat
 
 
