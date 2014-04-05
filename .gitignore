@@ -52,3 +52,12 @@ coverage.xml
 # Sphinx documentation
 docs/_build/
 
+# Modelica/FMI stuff
+*.txt
+dymosim
+*.mat
+*.jmu
+*.fmu
+*.jmux
+
+
