@@ -1,0 +1,12 @@
+This are the settings for my machine: env. variables to be created to run jmodelica.org
+ 
+if test "${JAVA_HOME}" = ""; then
+  export JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64/
+fi
+JMODELICA_HOME=/home/marco/JModelica \
+IPOPT_HOME=/home/marco/Ipopt \
+CPPAD_HOME=/home/marco/JModelica/ThirdParty/CppAD/ \
+SUNDIALS_HOME=/home/marco/JModelica/ThirdParty/Sundials \
+PYTHONPATH=:/home/marco/JModelica/Python/: \
+LD_LIBRARY_PATH=:/home/marco/Ipopt/lib/:/home/marco/JModelica/ThirdParty/Sundials/lib \
+SEPARATE_PROCESS_JVM=/usr/lib/jvm/java-7-openjdk-amd64/ \
