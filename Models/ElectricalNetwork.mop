@@ -1,0 +1,92 @@
+package ElectricNetwork
+	"This package contains simple models for optimization problems with electrical networks"
+
+    model Network "Flattened model of an electrical DC network"
+	  /// Parameters for the model
+      parameter Real R1 = 0.1 "Line resistance 1";
+      parameter Real R2 = 0.2 "Line resistance 2";
+      parameter Real R3 = 0.15 "Line resistance 3";
+      parameter Real A1 = 1000 "Area with PV panels 1";
+      parameter Real A2 = 800 "Area with PV panels 2";
+      parameter Real A3 = 1000 "Area with PV panels 3";
+      parameter Modelica.SIunits.Power P1 = 85000 "Nominal power consumption building 1";
+      parameter Modelica.SIunits.Power P2 = 65000 "Nominal power consumption building 2";
+      parameter Modelica.SIunits.Power P3 = 40000 "Nominal power consumption building 3";
+      parameter Modelica.SIunits.Energy Ebatt = 0.5*(P1+P2+P3)*2*3600 "Storage capacity for the battery";
+      parameter Modelica.SIunits.Voltage Vs = 4800 "Voltage source";
+	  parameter Real effPV = 0.9*0.12 "Efficiency of PV panels";
+	  
+	  /// Variable of the model
+      Modelica.SIunits.Power Qrad "Solar radiation per square meter";
+      Modelica.SIunits.Energy E(start=0.0, fixed = true) "Energy consumption of the network";
+      Modelica.SIunits.Voltage V1(start = Vs, nominal=Vs) "Voltage at the node";
+      Modelica.SIunits.Voltage V2(start = Vs, nominal=Vs) "Voltage at the node";
+      Modelica.SIunits.Voltage V3(start = Vs, nominal=Vs) "Voltage at the node";
+      Modelica.SIunits.Current Is,I2,I3,IL_1,IL_2,IL_3,IS_1,IS_2,IS_3 "Currents in branches and nodes";
+	  /// State variables
+      Real SOC(start = 0.5, fixed = true);
+	  Real Money(start = 0.0, fixed = true);
+	  
+	  /// Inputs of the model
+      input Modelica.SIunits.Current Ibatt;
+      input Real price;
+    protected 
+      Real PowerSignal = (0.65 - 0.3*sin(2*Modelica.Constants.pi*time/(24*3600) - 0.5235987755983));
+    equation
+      // Solar Radiation
+      Qrad = 600*sin(2*Modelica.Constants.pi*time/(2*24*3600))^8;
+	  
+	  // Energy consumed and money spent
+      der(E) = Is*Vs;
+      der(Money) = Is*Vs*price;
+      
+	  // Electrical connections
+      Is = (Vs - V1)/R1;
+      I2 = (V1 - V2)/R2;
+      I3 = (V2 - V3)/R3;
+
+      Is = IL_1 + IS_1 + I2;
+      I2 = IL_2 + IS_2 + I3;
+      I3 = IL_3 + IS_3 + Ibatt;
+      
+	  // Power loads
+      IL_1 = PowerSignal*P1/V1;
+      IS_1 = -Qrad*A1*effPV/V1;
+
+      IL_2 = PowerSignal*P2/V2;
+      IS_2 = -Qrad*A2*effPV/V2;
+
+      IL_3 = PowerSignal*P3/V3;
+      IS_3 = -Qrad*A3*effPV/V3;
+      
+	  // Ideal battery model
+      Ebatt*der(SOC) = Ibatt*V3;
+
+    end Network;
+
+	model NetworkSim "Simple simulation model with no battery storage and fixed electricity price"
+		ElectricNetwork.Network n;
+	equation
+		n.Ibatt = 0;
+		n.price = 0.1;
+	end NetworkSim;
+	
+    optimization NetworkBatteryMngmtOpt_E( objective = E(finalTime), startTime = 0.0, finalTime = 24.0*3600.0 )
+        extends ElectricNetwork.Network;
+    constraint
+        Ibatt <= 5.0;
+        -5.0 <= Ibatt;
+        SOC <= 1.0;
+        0.0 <= SOC;   
+    end NetworkBatteryMngmtOpt_E;
+    
+    optimization NetworkBatteryMngmtOpt_Money( objective = Money(finalTime), startTime = 0.0, finalTime = 24.0*3600.0 )
+        extends ElectricNetwork.Network;
+    constraint
+        Ibatt <= 5.0;
+        -5.0 <= Ibatt;
+        SOC <= 1.0;
+        0.0 <= SOC;   
+    end NetworkBatteryMngmtOpt_Money;
+	
+end ElectricNetwork;
