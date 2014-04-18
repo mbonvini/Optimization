@@ -34,11 +34,11 @@ package ElectricNetwork
 		Modelica.Blocks.Interfaces.RealInput P;
 		Modelica.Blocks.Interfaces.RealInput Q;
 	equation
-		Vrms = sqrt(p.v[2]^2 + p.v[1]^2); 
-		// p.i[1] = -(p.v[2]*Q + p.v[1]*P)/(V_nominal^2);
-	    // p.i[2] = -(p.v[2]*P - p.v[1]*Q)/(V_nominal^2);
-	    p.i[1] = -(p.v[2]*Q + p.v[1]*P)/(p.v[1]^2 + p.v[2]^2);
-	    p.i[2] = -(p.v[2]*P - p.v[1]*Q)/(p.v[1]^2 + p.v[2]^2);
+		Vrms = sqrt(p.v[2]^2 + p.v[1]^2);
+		p.i[1] = -(p.v[2]*Q + p.v[1]*P)/(Vn^2);
+	    p.i[2] = -(p.v[2]*P - p.v[1]*Q)/(Vn^2);
+	    //p.i[1] = -(p.v[2]*Q + p.v[1]*P)/(p.v[1]^2 + p.v[2]^2);
+	    //p.i[2] = -(p.v[2]*P - p.v[1]*Q)/(p.v[1]^2 + p.v[2]^2);
 	end Load;
 	
 	model Battery
@@ -48,7 +48,7 @@ package ElectricNetwork
 		Real SOC(start = SOCstart, fixed = true, min = 0, max = 1);
 	equation
 		// Ideal battery model
-		Ebatt*der(SOC) = P;
+		Ebatt*der(SOC) = -P;
 	end Battery;
 	
 	model ACnetworkSimple
@@ -112,8 +112,9 @@ package ElectricNetwork
 		
 		Modelica.Blocks.Interfaces.RealInput price;
 	equation
-		der(Money) = (S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2])/1000.0*price/3600.0;
-		der(E) = S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2];
+		//Money = E*price;
+		der(Money) = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2])/1000.0*price/3600.0;
+		1000*3600*der(E) = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2]);
 		
 		connect(S.p,     line1.a);
 		connect(line1.b, line2.a);
@@ -159,7 +160,7 @@ package ElectricNetwork
       parameter Modelica.SIunits.Power P1 = 200000 "Nominal power consumption building 1";
       parameter Modelica.SIunits.Power P2 = 175000 "Nominal power consumption building 2";
       parameter Modelica.SIunits.Power P3 = 180000 "Nominal power consumption building 3";
-      parameter Modelica.SIunits.Energy Ebatt = 0.5*(P1+P2+P3)*2*3600 "Storage capacity for the battery";
+      parameter Modelica.SIunits.Energy Ebatt = 0.2*(P1+P2+P3)*2*3600 "Storage capacity for the battery";
       parameter Modelica.SIunits.Voltage Vs = 4800 "Voltage source";
 	  parameter Real effPV = 0.9*0.12 "Efficiency of PV panels";
 	  
@@ -250,5 +251,39 @@ package ElectricNetwork
         Vs*(1-tol) <= V3;
         SOC(finalTime) = SOC(startTime);
     end NetworkBatteryMngmtOpt_Money;
+    
+    optimization ACnetworkBatteryMngmtOpt_Money( objective = Money(finalTime), startTime = 0.0, finalTime = 24.0*3600.0 )
+        extends ElectricNetwork.ACnetwork(SOCstart(free = true, initialGuess=0.5, min=0.1, max=1.0));
+        parameter Real tol = 0.1;
+    constraint
+        batt.SOC <= 1.0;
+        0.1 <= batt.SOC;
+        batt.P <= 100000;
+        -100000 <= batt.P;
+        bldg1.Vrms <= bldg1.Vn*1.05;
+        bldg2.Vrms <= bldg2.Vn*1.05;
+        bldg3.Vrms <= bldg3.Vn*1.05;
+        bldg1.Vn*0.95 <= bldg1.Vrms;
+        bldg2.Vn*0.95 <= bldg2.Vrms;
+        bldg3.Vn*0.95 <= bldg3.Vrms;
+        batt.SOC(finalTime) = batt.SOC(startTime);
+    end ACnetworkBatteryMngmtOpt_Money;
+    
+    optimization ACnetworkBatteryMngmtOpt_Money( objective = Money(finalTime), startTime = 0.0, finalTime = 24.0*3600.0 )
+        extends ElectricNetwork.ACnetwork(SOCstart(free = true, initialGuess=0.5, min=0.1, max=1.0));
+        parameter Real tol = 0.1;
+    constraint
+        batt.SOC <= 1.0;
+        0.1 <= batt.SOC;
+        batt.P <= 100000;
+        -100000 <= batt.P;
+        bldg1.Vrms <= bldg1.Vn*1.05;
+        bldg2.Vrms <= bldg2.Vn*1.05;
+        bldg3.Vrms <= bldg3.Vn*1.05;
+        bldg1.Vn*0.95 <= bldg1.Vrms;
+        bldg2.Vn*0.95 <= bldg2.Vrms;
+        bldg3.Vn*0.95 <= bldg3.Vrms;
+        batt.SOC(finalTime) = batt.SOC(startTime);
+    end ACnetworkBatteryMngmtOpt_Money;
 	
 end ElectricNetwork;
