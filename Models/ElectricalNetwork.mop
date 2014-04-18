@@ -1,6 +1,30 @@
 package ElectricNetwork
 	"This package contains simple models for optimization problems with electrical networks"
-
+	
+	model Derivative
+    	input Real u "input";
+    	output Real y "derivative";
+    	parameter Real T = 0.1 "time constant";
+    	parameter Real k = 1 "gain";
+   	protected
+    	Real x (start = 0, fixed=true);
+   	equation
+   		y = k/T*(u - x);
+   		der(x) = (u - x)/T;
+   	end Derivative;
+   	
+   	model FirstOrder
+    	input Real u "input";
+    	output Real y "derivative";
+    	parameter Real T = 0.1 "time constant";
+    	parameter Real k = 1 "gain";
+   	protected
+    	Real x (start = 0, fixed=true);
+   	equation
+   		x + T*der(x) = k*u;
+   		y = x;
+   	end derivative;
+	
 	connector Pin
 		Modelica.SIunits.Voltage v[2];
 		flow Modelica.SIunits.Current i[2];
@@ -66,21 +90,26 @@ package ElectricNetwork
 	
 	model ACnetwork
 		parameter Real SOCstart = 0.5;
-		parameter Real R1 = 1.2 "Line resistance 1";
-        parameter Real R2 = 1.1 "Line resistance 2";
-        parameter Real R3 = 1.05 "Line resistance 3";
-        parameter Real A1 = 1400 "Area with PV panels 1";
-        parameter Real A2 = 900 "Area with PV panels 2";
-        parameter Real A3 = 1200 "Area with PV panels 3";
-        parameter Modelica.SIunits.Power P1 = 200000 "Nominal power consumption building 1";
+		parameter Real R1 = 1.8*1.2 "Line resistance 1";
+        parameter Real R2 = 1.8*1.1 "Line resistance 2";
+        parameter Real R3 = 1.8*1.05 "Line resistance 3";
+        parameter Real ratio1 = 1 "power ratio PV panels 1";
+        parameter Real ratio2 = 1 "power PV panels 2";
+        parameter Real ratio3 = 1 "power PV panels 3";
+        parameter Real A1 = P1*ratio1/(effPV*Qrad) "Area with PV panels 1";
+        parameter Real A2 = P2*ratio2/(effPV*Qrad) "Area with PV panels 2";
+        parameter Real A3 = P3*ratio3/(effPV*Qrad) "Area with PV panels 3";
+        parameter Modelica.SIunits.Power P1 = 220000 "Nominal power consumption building 1";
         parameter Modelica.SIunits.Power P2 = 175000 "Nominal power consumption building 2";
-        parameter Modelica.SIunits.Power P3 = 180000 "Nominal power consumption building 3";
-        parameter Modelica.SIunits.Energy Ebatt = 0.5*(P1+P2+P3)*2*3600 "Storage capacity for the battery";
+        parameter Modelica.SIunits.Power P3 = 190000 "Nominal power consumption building 3";
+        parameter Modelica.SIunits.Energy Ebatt = 1.0*(P1+P2+P3)*2*3600 "Storage capacity for the battery";
         parameter Modelica.SIunits.Voltage Vs = 4800 "Voltage source";
 	    parameter Real effPV = 0.9*0.12 "Efficiency of PV panels";
 	  	parameter Modelica.SIunits.Power Qrad = 800 "Maximum solar radiation per square meter";
 	  	
 	    /// Variable of the model
+	    Real Balance;
+	    Real Ebal(start = 0.0, fixed = true);
         Real Money(start = 0.0, fixed = true);
 		Modelica.SIunits.Energy E(start=0.0, fixed = true) "Energy consumption of the network";
 		
@@ -111,7 +140,23 @@ package ElectricNetwork
 		Modelica.Blocks.Interfaces.RealInput Q_batt;
 		
 		Modelica.Blocks.Interfaces.RealInput price;
+		
+		//Real action(start = 0, fixed=true, initialGuess=0);
+        //Real cost(initialGuess=0);
+        //ElectricNetwork.Derivative D(T = 10, k=0.0001);
+        //ElectricNetwork.FirstOrder fo(T = 5, k=1);
 	equation
+		Balance = P_bldg2*P2 + P_bldg1*P1 + P_bldg3*P3 + P_pv1*Qrad*A1*effPV + P_pv2*Qrad*A2*effPV + P_pv3*Qrad*A3*effPV;
+		der(Ebal) = Balance;
+		
+		// Derivative of the control action
+	    // D.u = batt.P;
+	    // fo.u = D.y*atan(5*D.y)/(Modelica.Constants.pi/2.0);
+	    // Integrate the derivative of the control in order to avoid big variations
+        // der(action) = batt.P^2;
+        // The cost is a mix of money and action
+        //cost = Money;
+	
 		//Money = E*price;
 		der(Money) = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2])/1000.0*price/3600.0;
 		1000*3600*der(E) = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2]);
@@ -254,7 +299,7 @@ package ElectricNetwork
     
     optimization ACnetworkBatteryMngmtOpt_Money( objective = Money(finalTime), startTime = 0.0, finalTime = 24.0*3600.0 )
         extends ElectricNetwork.ACnetwork(SOCstart(free = true, initialGuess=0.5, min=0.1, max=1.0));
-        parameter Real tol = 0.1;
+        parameter Real tol = 0.05;
     constraint
         batt.SOC <= 1.0;
         0.1 <= batt.SOC;
@@ -269,9 +314,9 @@ package ElectricNetwork
         batt.SOC(finalTime) = batt.SOC(startTime);
     end ACnetworkBatteryMngmtOpt_Money;
     
-    optimization ACnetworkBatteryMngmtOpt_Money( objective = Money(finalTime), startTime = 0.0, finalTime = 24.0*3600.0 )
+    optimization ACnetworkBatteryMngmtOpt_E( objective = E(finalTime), startTime = 0.0, finalTime = 24.0*3600.0 )
         extends ElectricNetwork.ACnetwork(SOCstart(free = true, initialGuess=0.5, min=0.1, max=1.0));
-        parameter Real tol = 0.1;
+        parameter Real tol = 0.05;
     constraint
         batt.SOC <= 1.0;
         0.1 <= batt.SOC;
@@ -284,6 +329,6 @@ package ElectricNetwork
         bldg2.Vn*0.95 <= bldg2.Vrms;
         bldg3.Vn*0.95 <= bldg3.Vrms;
         batt.SOC(finalTime) = batt.SOC(startTime);
-    end ACnetworkBatteryMngmtOpt_Money;
+    end ACnetworkBatteryMngmtOpt_E;
 	
 end ElectricNetwork;
