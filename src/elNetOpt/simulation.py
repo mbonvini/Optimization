@@ -13,7 +13,7 @@ from pyjmi import CasadiModel
 import matplotlib.pyplot as plt
 import numpy as np
 
-def getData(new_time):
+def getData(new_time, plot = False):
     """
     This function get data from CSV files
     """
@@ -40,26 +40,28 @@ def getData(new_time):
         pv_new[:,i]   = np.interp(new_time, time, pv[:,i])
         bldg_new[:,i] = np.interp(new_time, time, bldg[:,i])
     
-    figPv = plt.figure()
-    ax = figPv.add_subplot(211) 
-    ax.plot(new_time, pv_new, 'r', alpha=0.3)
-    ax.set_xlabel('Time [hours]')
-    ax.set_ylabel('Power [W]')
-    ax.set_xlim([0, 86400])
-    ax.set_ylim([0, 1])
-    
-    ax = figPv.add_subplot(212) 
-    ax.plot(new_time, bldg_new, 'b', alpha=0.3)
-    ax.set_xlabel('Time [hours]')
-    ax.set_ylabel('Power [W]')
-    ax.set_xlim([0, 86400])
-    ax.set_ylim([0, 1])
-    
-    plt.show()
+    # plot if requested 
+    if plot:
+        figPv = plt.figure()
+        ax = figPv.add_subplot(211) 
+        ax.plot(new_time, pv_new, 'r', alpha=0.3)
+        ax.set_xlabel('Time [hours]')
+        ax.set_ylabel('Power [W]')
+        ax.set_xlim([0, 86400])
+        ax.set_ylim([0, 1])
+        
+        ax = figPv.add_subplot(212) 
+        ax.plot(new_time, bldg_new, 'b', alpha=0.3)
+        ax.set_xlabel('Time [hours]')
+        ax.set_ylabel('Power [W]')
+        ax.set_xlim([0, 86400])
+        ax.set_ylim([0, 1])
+        
+        plt.show()
     
     return (pv_new, bldg_new)
     
-def run_simulation():
+def run_simulation(plot = False):
     """
     This function runs a simple simulation without input data
     """
@@ -92,10 +94,11 @@ def run_simulation():
     t_init_sim = res['time']
     
     # plot results
-    plotFunction(t_init_sim, Vs_init_sim, V1_init_sim, V2_init_sim, \
+    if plot:
+        plotFunction(t_init_sim, Vs_init_sim, V1_init_sim, V2_init_sim, \
                  V3_init_sim, E_init_sim, SOC_init_sim, Money_init_sim, price_init_sim)
 
-def run_simulation_with_inputs(time, price, pv, bldg):
+def run_simulation_with_inputs(time, price, pv, bldg, plot = False):
     """
     This function runs a simulation that uses inputs data series
     """
@@ -138,7 +141,8 @@ def run_simulation_with_inputs(time, price, pv, bldg):
     t_init_sim = res['time']
     
     # plot results
-    plotFunction(t_init_sim, Vs_init_sim, V1_init_sim, V2_init_sim, \
+    if plot:
+        plotFunction(t_init_sim, Vs_init_sim, V1_init_sim, V2_init_sim, \
                  V3_init_sim, E_init_sim, SOC_init_sim, Money_init_sim, price_init_sim)
     
     return res
@@ -237,6 +241,20 @@ def plotCompare(simulation, optimization):
     plt.grid()
     plt.ylabel('Money')
     
+    figV = plt.figure()
+    ax = figV.add_subplot(111) 
+    ax.plot(t_sim, Vs_sim, 'k', alpha=1)
+    ax.plot(t_sim, V1_sim, 'r', alpha=0.7)
+    ax.plot(t_sim, V2_sim, 'r', alpha=0.7)
+    ax.plot(t_sim, V3_sim, 'r', alpha=0.7)
+
+    ax.plot(t_opt, V1_opt, 'b', alpha=0.7)
+    ax.plot(t_opt, V2_opt, 'b', alpha=0.7)
+    ax.plot(t_opt, V3_opt, 'b', alpha=0.7)
+    ax.fill_between(t_opt, 4800*0.99*np.ones(np.shape(t_opt)), 4800*1.01*np.ones(np.shape(t_opt)), facecolor='green', alpha=0.3)
+    ax.set_xlabel('Time [hours]')
+    ax.set_ylabel('Voltage [W]')
+    
     plt.show()
 
 def plotFunction(time, Vs, V1, V2, V3, E, SOC, Money, price):
@@ -300,10 +318,10 @@ if __name__ == '__main__':
     price = 0.22*np.interp(t_data, t_price, price)
     
     # Time series for buildings and PVs
-    (pv, bldg) = getData(t_data)
+    (pv, bldg) = getData(t_data, plot = False)
     
     # Run the simulation
-    res = run_simulation_with_inputs(t_data, price, pv, bldg)
+    res = run_simulation_with_inputs(t_data, price, pv, bldg, plot = True)
     
     # Run the optimization
     run_optimization(res, t_data, price, pv, bldg)

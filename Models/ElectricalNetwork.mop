@@ -3,7 +3,7 @@ package ElectricNetwork
 
 	connector Pin
 		Modelica.SIunits.Voltage v[2];
-		Modelica.SIunits.Current i[2];
+		flow Modelica.SIunits.Current i[2];
 	end Pin;
 	
 	model Source
@@ -28,10 +28,13 @@ package ElectricNetwork
 	end Line;
 	
 	model Load
-		ElectricNetwork.Pin p;
-		input Real P;
-		input Real Q;
+		ElectricNetwork.Pin p(v(start = {Vn, 0}));
+		Modelica.SIunits.Voltage Vrms(start = Vn);
+		parameter Modelica.SIunits.Voltage Vn = 220;
+		Modelica.Blocks.Interfaces.RealInput P;
+		Modelica.Blocks.Interfaces.RealInput Q;
 	equation
+		Vrms = sqrt(p.v[2]^2 + p.v[1]^2); 
 		// p.i[1] = -(p.v[2]*Q + p.v[1]*P)/(V_nominal^2);
 	    // p.i[2] = -(p.v[2]*P - p.v[1]*Q)/(V_nominal^2);
 	    p.i[1] = -(p.v[2]*Q + p.v[1]*P)/(p.v[1]^2 + p.v[2]^2);
@@ -39,36 +42,129 @@ package ElectricNetwork
 	end Load;
 	
 	model Battery
-		ElectricNetwork.Pin p;
-		input Modelica.SIunits.Current Ibatt;
+		extends ElectricNetwork.Load;
 		parameter Modelica.SIunits.Energy Ebatt = 100 "Storage capacity for the battery";
 		parameter Real SOCstart = 0.5;
 		Real SOC(start = SOCstart, fixed = true, min = 0, max = 1);
 	equation
-		(p.i[2]+p.i[1])^2 = Ibatt^2;
-		p.v[1]*p.i[2] = p.v[2]*p.i[1];
-		
 		// Ideal battery model
-		Ebatt*der(SOC) = Ibatt*sqrt(p.v[1]^2 + p.v[2]^2);
+		Ebatt*der(SOC) = P;
 	end Battery;
+	
+	model ACnetworkSimple
+		ElectricNetwork.Source S(Vrms=220);
+		ElectricNetwork.Load L;
+		ElectricNetwork.Line line1(R=0.1, X=0.1);
+		Modelica.Blocks.Interfaces.RealInput P;
+		Modelica.Blocks.Interfaces.RealInput Q;
+	equation
+		connect(S.p, line1.a);
+		connect(line1.b, L.p);
+		L.P = P;
+		L.Q = Q;
+	end ACnetworkSimple;
+	
+	model ACnetwork
+		parameter Real SOCstart = 0.5;
+		parameter Real R1 = 1.2 "Line resistance 1";
+        parameter Real R2 = 1.1 "Line resistance 2";
+        parameter Real R3 = 1.05 "Line resistance 3";
+        parameter Real A1 = 1400 "Area with PV panels 1";
+        parameter Real A2 = 900 "Area with PV panels 2";
+        parameter Real A3 = 1200 "Area with PV panels 3";
+        parameter Modelica.SIunits.Power P1 = 200000 "Nominal power consumption building 1";
+        parameter Modelica.SIunits.Power P2 = 175000 "Nominal power consumption building 2";
+        parameter Modelica.SIunits.Power P3 = 180000 "Nominal power consumption building 3";
+        parameter Modelica.SIunits.Energy Ebatt = 0.5*(P1+P2+P3)*2*3600 "Storage capacity for the battery";
+        parameter Modelica.SIunits.Voltage Vs = 4800 "Voltage source";
+	    parameter Real effPV = 0.9*0.12 "Efficiency of PV panels";
+	  	parameter Modelica.SIunits.Power Qrad = 800 "Maximum solar radiation per square meter";
+	  	
+	    /// Variable of the model
+        Real Money(start = 0.0, fixed = true);
+		Modelica.SIunits.Energy E(start=0.0, fixed = true) "Energy consumption of the network";
+		
+		ElectricNetwork.Source S(Vrms=Vs);
+		
+		ElectricNetwork.Load bldg1(Vn=Vs);
+		ElectricNetwork.Load bldg2(Vn=Vs);
+		ElectricNetwork.Load bldg3(Vn=Vs);
+		
+		ElectricNetwork.Load pv1(Vn=Vs);
+		ElectricNetwork.Load pv2(Vn=Vs);
+		ElectricNetwork.Load pv3(Vn=Vs);
+		
+		ElectricNetwork.Battery batt(Vn=Vs, SOCstart = SOCstart, Ebatt = Ebatt);
+		
+		ElectricNetwork.Line line1(R=R1, X=R1/10);
+		ElectricNetwork.Line line2(R=R2, X=R2/12);
+		ElectricNetwork.Line line3(R=R3, X=R3/10);
+		
+		Modelica.Blocks.Interfaces.RealInput P_bldg1;
+		Modelica.Blocks.Interfaces.RealInput P_bldg2;
+		Modelica.Blocks.Interfaces.RealInput P_bldg3;
+		Modelica.Blocks.Interfaces.RealInput P_pv1;
+		Modelica.Blocks.Interfaces.RealInput P_pv2;
+		Modelica.Blocks.Interfaces.RealInput P_pv3;
+		
+		Modelica.Blocks.Interfaces.RealInput P_batt;
+		Modelica.Blocks.Interfaces.RealInput Q_batt;
+		
+		Modelica.Blocks.Interfaces.RealInput price;
+	equation
+		der(Money) = (S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2])/1000.0*price/3600.0;
+		der(E) = S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2];
+		
+		connect(S.p,     line1.a);
+		connect(line1.b, line2.a);
+		connect(line2.b, line3.a);
+		connect(line3.b, batt.p);
+		
+		connect(bldg1.p, line1.b);
+		connect(pv1.p, line1.b);
+		connect(bldg2.p, line2.b);
+		connect(pv2.p, line2.b);
+		connect(bldg3.p, line3.b);
+		connect(pv3.p, line3.b);
+		
+		bldg1.P = P_bldg1*P1;
+		bldg1.Q = P_bldg1/8.0;
+		
+		bldg2.P = P_bldg2*P2;
+		bldg2.Q = P_bldg2/9.0;
+		
+		bldg3.P = P_bldg3*P3;
+		bldg3.Q = P_bldg3/10.0;
+		
+		pv1.P = P_pv1*Qrad*A1*effPV;
+		pv1.Q = 0;
+		pv2.P = P_pv2*Qrad*A2*effPV;
+		pv2.Q = 0;
+		pv3.P = P_pv3*Qrad*A3*effPV;
+		pv3.Q = 0;
+		
+		batt.P = P_batt;
+		batt.Q = Q_batt;
+		
+	end ACnetwork;
 	
     model Network "Flattened model of an electrical DC network"
 	  /// Parameters for the model
-      parameter Real R1 = 0.1 "Line resistance 1";
-      parameter Real R2 = 0.2 "Line resistance 2";
-      parameter Real R3 = 0.15 "Line resistance 3";
-      parameter Real A1 = 1000 "Area with PV panels 1";
-      parameter Real A2 = 800 "Area with PV panels 2";
-      parameter Real A3 = 1000 "Area with PV panels 3";
-      parameter Modelica.SIunits.Power P1 = 85000 "Nominal power consumption building 1";
-      parameter Modelica.SIunits.Power P2 = 65000 "Nominal power consumption building 2";
-      parameter Modelica.SIunits.Power P3 = 40000 "Nominal power consumption building 3";
+      parameter Real R1 = 1.2 "Line resistance 1";
+      parameter Real R2 = 1.1 "Line resistance 2";
+      parameter Real R3 = 1.05 "Line resistance 3";
+      parameter Real A1 = 1400 "Area with PV panels 1";
+      parameter Real A2 = 900 "Area with PV panels 2";
+      parameter Real A3 = 1200 "Area with PV panels 3";
+      parameter Modelica.SIunits.Power P1 = 200000 "Nominal power consumption building 1";
+      parameter Modelica.SIunits.Power P2 = 175000 "Nominal power consumption building 2";
+      parameter Modelica.SIunits.Power P3 = 180000 "Nominal power consumption building 3";
       parameter Modelica.SIunits.Energy Ebatt = 0.5*(P1+P2+P3)*2*3600 "Storage capacity for the battery";
       parameter Modelica.SIunits.Voltage Vs = 4800 "Voltage source";
 	  parameter Real effPV = 0.9*0.12 "Efficiency of PV panels";
 	  
 	  /// Variable of the model
-      parameter Modelica.SIunits.Power Qrad = 600 "Maximum solar radiation per square meter";
+      parameter Modelica.SIunits.Power Qrad = 800 "Maximum solar radiation per square meter";
       Modelica.SIunits.Energy E(start=0.0, fixed = true) "Energy consumption of the network";
       Modelica.SIunits.Voltage V1(start = Vs, nominal=Vs) "Voltage at the node";
       Modelica.SIunits.Voltage V2(start = Vs, nominal=Vs) "Voltage at the node";
@@ -126,22 +222,32 @@ package ElectricNetwork
 	end NetworkSim;
 	
     optimization NetworkBatteryMngmtOpt_E( objective = E(finalTime), startTime = 0.0, finalTime = 24.0*3600.0 )
-        extends ElectricNetwork.Network(SOCstart(free = true, initialGuess=0.5, min=0.0, max=1.0));
+        extends ElectricNetwork.Network(SOCstart(free = true, initialGuess=0.5, min=0.1, max=1.0));
+        parameter Real tol = 0.05;
     constraint
-        Ibatt <= 5.0;
-        -5.0 <= Ibatt;
         SOC <= 1.0;
-        0.0 <= SOC;
+        0.1 <= SOC;
+        V1 <= Vs*(1+tol);
+        Vs*(1-tol) <= V1;
+        V2 <= Vs*(1+tol);
+        Vs*(1-tol) <= V2;
+        V3 <= Vs*(1+tol);
+        Vs*(1-tol) <= V3;
         SOC(finalTime) = SOC(startTime);  
     end NetworkBatteryMngmtOpt_E;
     
     optimization NetworkBatteryMngmtOpt_Money( objective = Money(finalTime), startTime = 0.0, finalTime = 24.0*3600.0 )
-        extends ElectricNetwork.Network(SOCstart(free = true, initialGuess=0.5, min=0.0, max=1.0));
+        extends ElectricNetwork.Network(SOCstart(free = true, initialGuess=0.5, min=0.1, max=1.0));
+        parameter Real tol = 0.05;
     constraint
-        Ibatt <= 5.0;
-        -5.0 <= Ibatt;
         SOC <= 1.0;
-        0.0 <= SOC;
+        0.1 <= SOC;
+        V1 <= Vs*(1+tol);
+        Vs*(1-tol) <= V1;
+        V2 <= Vs*(1+tol);
+        Vs*(1-tol) <= V2;
+        V3 <= Vs*(1+tol);
+        Vs*(1-tol) <= V3;
         SOC(finalTime) = SOC(startTime);
     end NetworkBatteryMngmtOpt_Money;
 	
