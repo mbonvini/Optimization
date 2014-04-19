@@ -59,6 +59,20 @@ def getData(new_time, plot = False):
         ax.set_xlim([0, 24])
         ax.set_ylim([0, 1])
         
+        figAll = plt.figure()
+        ax = figAll.add_subplot(111)
+        ax.plot(new_time/3600, pv_new[:,0], 'r', alpha=0.5, linewidth=2, label="PVs")
+        ax.plot(new_time/3600, pv_new[:,1:], 'r', alpha=0.5, linewidth=2)
+        ax.plot(new_time/3600, bldg_new[:,0], 'b', alpha=0.5, linewidth=2, label="Buildings")
+        ax.plot(new_time/3600, bldg_new[:,1:], 'b', alpha=0.5, linewidth=2)
+        ax.set_xlabel('Time [hours]')
+        ax.set_ylabel('P/Pmax [$\cdot$]')
+        ax.set_title("Normalized power production and consumption")
+        ax.set_xlim([0, 24])
+        ax.set_ylim([0, 1])
+        legend = ax.legend(loc="upper left")
+        legend.draggable(state=True)
+        
         plt.show()
     
     return (pv_new, bldg_new)
@@ -236,6 +250,61 @@ def plotFunction(res, res_opt=None):
     ax.set_xlabel('time [hours]')
     ax.set_ylabel('Integral of power balance [J]')
     ax.legend(loc="upper left")
+    
+def plotComparison(res_noPV, res_PV, res_sim_PV):
+    time = res_noPV["time"]/3600.0
+    price= res_noPV["price"]
+    Vs   = res_noPV["S.Vrms"]
+    V1   = res_noPV["bldg1.Vrms"]
+    V2   = res_noPV["bldg2.Vrms"]
+    V3   = res_noPV["bldg3.Vrms"]
+    SOC  = res_noPV["batt.SOC"]
+    
+    time_pv = res_PV["time"]/3600.0
+    V1_pv   = res_PV["bldg1.Vrms"]
+    V2_pv   = res_PV["bldg2.Vrms"]
+    V3_pv   = res_PV["bldg3.Vrms"]
+    SOC_pv  = res_PV["batt.SOC"]
+    
+    time_s_pv = res_sim_PV["time"]/3600.0
+    V1_s_pv   = res_sim_PV["bldg1.Vrms"]
+    V2_s_pv   = res_sim_PV["bldg2.Vrms"]
+    V3_s_pv   = res_sim_PV["bldg3.Vrms"]
+    
+    figCmp = plt.figure()
+    ax = figCmp.add_subplot(211)
+    ax.plot(time, SOC, 'r', label='$SOC_{No PV}$')
+    ax.plot(time_pv, SOC_pv, 'b', label='$SOC_{PV}$')
+    ax.fill_between([6,12], [0,0], [1,1], facecolor='#CC3300', alpha=0.2, linewidth=0)
+    ax.fill_between([12,13], [0,0], [1,1], facecolor='#CC3300', alpha=0.3, linewidth=0)
+    ax.fill_between([13,16], [0,0], [1,1], facecolor='#CC3300', alpha=0.6, linewidth=0)
+    ax.fill_between([16,18], [0,0], [1,1], facecolor='#CC3300', alpha=0.5, linewidth=0)
+    ax.fill_between([18,19], [0,0], [1,1], facecolor='#CC3300', alpha=0.4, linewidth=0)
+    ax.fill_between([19,22], [0,0], [1,1], facecolor='#CC3300', alpha=0.2, linewidth=0)
+    
+    ax.set_xlim([0, 24])
+    ax.set_xlabel('Time [hours]')
+    ax.set_ylabel('State of charge [1]')
+    legend = ax.legend(loc="upper left")
+    legend.draggable(state=True)
+    
+    ax = figCmp.add_subplot(212)
+    ax.plot(time, Vs, 'k')
+    ax.fill_between(time, Vs*0.95, Vs*1.05, facecolor='grey', alpha=0.2)
+    ax.plot(time, V1, 'r', label='$V_{No PV}$', alpha=0.5)
+    ax.plot(time, V2, 'r', alpha=0.5)
+    ax.plot(time, V3, 'r', alpha=0.5)
+    ax.plot(time_pv, V1_pv, 'b', label='$V_{PV}^{MPC}$')
+    ax.plot(time_pv, V2_pv, 'b')
+    ax.plot(time_pv, V3_pv, 'b')
+    ax.plot(time_s_pv, V1_s_pv, 'b--', label='$V_{PV}$', alpha=0.5)
+    ax.plot(time_s_pv, V2_s_pv, 'b--', alpha=0.5)
+    ax.plot(time_s_pv, V3_s_pv, 'b--', alpha=0.5)
+    ax.set_xlim([0, 24])
+    ax.set_xlabel('Time [hours]')
+    ax.set_ylabel('RMS Voltage [V]')
+    legend = ax.legend(loc="upper left")
+    legend.draggable(state=True)
 
 def run_optimization(sim_res, time, price, pv, bldg, plot = True, usePV = True):
     """
@@ -316,8 +385,10 @@ if __name__ == '__main__':
     price = 0.22*np.interp(t_data, t_price, price)
     
     # Time series for buildings and PVs
-    (pv, bldg) = getData(t_data, plot = False)
+    (pv, bldg) = getData(t_data, plot = True)
     
+    """
+
     # Run the simulation NO PVs
     res_sim_noPV = run_simulation_with_inputs(t_data, price, pv, bldg, plot = False, usePV = False)
     
@@ -334,5 +405,7 @@ if __name__ == '__main__':
     plotFunction(res_sim_noPV, res_opt_noPV)
     plotFunction(res_sim_PV, res_opt_PV)
     
+    # plot and compare results
+    plotComparison(res_opt_noPV, res_opt_PV, res_sim_PV)
+    """
     plt.show()
-    
