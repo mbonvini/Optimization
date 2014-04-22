@@ -59,10 +59,10 @@ package ElectricNetwork
 		Modelica.Blocks.Interfaces.RealInput Q;
 	equation
 		Vrms = sqrt(p.v[2]^2 + p.v[1]^2);
-		p.i[1] = -(p.v[2]*Q + p.v[1]*P)/(Vn^2);
-	    p.i[2] = -(p.v[2]*P - p.v[1]*Q)/(Vn^2);
-	    //p.i[1] = -(p.v[2]*Q + p.v[1]*P)/(p.v[1]^2 + p.v[2]^2);
-	    //p.i[2] = -(p.v[2]*P - p.v[1]*Q)/(p.v[1]^2 + p.v[2]^2);
+		//p.i[1] = -(p.v[2]*Q + p.v[1]*P)/(Vn^2);
+	    //p.i[2] = -(p.v[2]*P - p.v[1]*Q)/(Vn^2);
+	    p.i[1] = -(p.v[2]*Q + p.v[1]*P)/(p.v[1]^2 + p.v[2]^2);
+	    p.i[2] = -(p.v[2]*P - p.v[1]*Q)/(p.v[1]^2 + p.v[2]^2);
 	end Load;
 	
 	model Battery
