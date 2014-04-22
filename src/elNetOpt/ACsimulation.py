@@ -272,7 +272,7 @@ def plotComparison(res_noPV, res_PV, res_sim_PV):
     V3_s_pv   = res_sim_PV["bldg3.Vrms"]
     
     figCmp = plt.figure()
-    ax = figCmp.add_subplot(211)
+    ax = figCmp.add_subplot(212)
     ax.plot(time, SOC, 'r', label='$SOC_{No PV}$')
     ax.plot(time_pv, SOC_pv, 'b', label='$SOC_{PV}$')
     ax.fill_between([6,12], [0,0], [1,1], facecolor='#CC3300', alpha=0.2, linewidth=0)
@@ -288,7 +288,7 @@ def plotComparison(res_noPV, res_PV, res_sim_PV):
     legend = ax.legend(loc="upper left")
     legend.draggable(state=True)
     
-    ax = figCmp.add_subplot(212)
+    ax = figCmp.add_subplot(211)
     ax.plot(time, Vs, 'k')
     ax.fill_between(time, Vs*0.95, Vs*1.05, facecolor='grey', alpha=0.2)
     ax.plot(time, V1, 'r', label='$V_{No PV}$', alpha=0.5)
@@ -386,8 +386,6 @@ if __name__ == '__main__':
     
     # Time series for buildings and PVs
     (pv, bldg) = getData(t_data, plot = True)
-    
-    """
 
     # Run the simulation NO PVs
     res_sim_noPV = run_simulation_with_inputs(t_data, price, pv, bldg, plot = False, usePV = False)
@@ -407,5 +405,5 @@ if __name__ == '__main__':
     
     # plot and compare results
     plotComparison(res_opt_noPV, res_opt_PV, res_sim_PV)
-    """
+    
     plt.show()
