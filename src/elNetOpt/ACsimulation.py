@@ -333,8 +333,8 @@ def run_optimization(sim_res, time, price, pv, bldg, plot = True, usePV = True):
     data_price = np.vstack([t_data, price])
     eliminated['price'] = data_price
     
-    data_Q  = np.vstack([t_data, np.zeros(Npoints)])
-    eliminated['Q_batt'] = data_Q
+    #data_Q  = np.vstack([t_data, np.zeros(Npoints)])
+    #eliminated['Q_batt'] = data_Q
     
     data_pv1 = np.vstack([t_data, np.squeeze(pv[:,0])])
     eliminated['P_pv1'] = data_pv1
