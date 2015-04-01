@@ -105,7 +105,8 @@ package ElectricNetwork
 	  Modelica.Blocks.Interfaces.RealInput P_hvac "Cooling/Heating power supplied by the HVAC system";
 	  Modelica.Blocks.Interfaces.RealOutput P_el "Electric power consumed by the HVAC system";
 	  Modelica.Blocks.Interfaces.RealOutput E(start = 0.0) "Energy consumed by the HVAC in kWh";
-	  
+	  Modelica.Blocks.Interfaces.RealInput price "Price of kWh"; 
+          Real Money(start = 0.0) "Money spent";
 	  parameter Modelica.SIunits.Temperature Tstart 
 	    "Initial temperatures of all the elements";
 	  parameter Integer N "Number of state variables";
@@ -130,10 +131,11 @@ package ElectricNetwork
 	    "Averaged temperature of the air in the building";
 	equation
 	  // Computation of the electric power and energy
-	  COP*P_el = P_hvac;//(P_hvac)*atan(P_hvac)/asin(1);
+	  COP*P_el = (P_hvac)*atan(P_hvac)/asin(1);
 	  P_m2 = P_hvac/A_tot;
 	  3600.0*der(E) = P_el/1000.0;
-	  
+	  der(Money) = price*P_el/1000.0/3600.0;
+ 
 	  // Connect the inputs to building model
 	  linBuiModel.u[1] = u[1] + P_m2;
 	  connect(linBuiModel.u[2:7], u[2:7]);
@@ -167,15 +169,29 @@ package ElectricNetwork
 	end RCBuildingModel8;
 	
 	optimization BuildingMngmtOpt_E( objective = E(finalTime), startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
-        extends ElectricNetwork.RCBuildingModel2;
-        parameter Real Tmin = 273.15+19;
-        parameter Real Tmax = 273.15+25;
-    constraint
-        Tmix <= Tmax;
-        Tmin <= Tmix;
-        P_hvac <= 0;
-        -2e5 <= P_hvac;
-    end BuildingMngmtOpt_E;
+            extends ElectricNetwork.RCBuildingModel2(E(free=true, initialGuess = 0.0, min = 0.0),
+            Money(free=true, initialGuess = 0.0, min = 0.0));
+            parameter Real Tmin = 273.15+20;
+            parameter Real Tmax = 273.15+24;
+        constraint
+            Tmix <= Tmax;
+            Tmin <= Tmix;
+            P_hvac <= 0;
+            -2e5 <= P_hvac;
+        end BuildingMngmtOpt_E;
+
+        optimization BuildingMngmtOpt_Money( objective = Money(finalTime), startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
+            extends ElectricNetwork.RCBuildingModel2(E(free=true, initialGuess = 0.0, min = 0.0),
+            Money(free=true, initialGuess = 0.0, min = 0.0));
+            parameter Real Tmin = 273.15+20;
+            parameter Real Tmax = 273.15+24;
+        constraint
+            Tmix <= Tmax;
+            Tmin <= Tmix;
+            P_hvac <= 0;
+            -2e5 <= P_hvac;
+        end BuildingMngmtOpt_Money;
+
 	
 	model Battery
 		extends ElectricNetwork.Load;
