@@ -101,7 +101,7 @@ package ElectricNetwork
 	  //  u[6] v_solGlobFac_S [W/m2]
 	  //  u[7] v_solGlobFac_W [W/m2]
       parameter Modelica.SIunits.Area A_tot "Area of the building";
-	  parameter Real COP = 3 "Nominal Coefficient of performance of the HVAC system";
+	  Real COP "Nominal Coefficient of performance of the HVAC system";
 	  Modelica.Blocks.Interfaces.RealInput P_hvac "Cooling/Heating power supplied by the HVAC system";
 	  Modelica.Blocks.Interfaces.RealOutput P_el "Electric power consumed by the HVAC system";
 	  Modelica.Blocks.Interfaces.RealOutput E(start = 0.0) "Energy consumed by the HVAC in kWh";
@@ -131,6 +131,7 @@ package ElectricNetwork
 	    "Averaged temperature of the air in the building";
 	equation
 	  // Computation of the electric power and energy
+          COP = 3+285.0*1.0/28.0 - 1.0/28.0*u[2];
 	  COP*P_el = (P_hvac)*atan(P_hvac)/asin(1);
 	  P_m2 = P_hvac/A_tot;
 	  3600.0*der(E) = P_el/1000.0;
@@ -170,14 +171,15 @@ package ElectricNetwork
 	
 	optimization BuildingMngmtOpt_E( objective = E(finalTime), startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
             extends ElectricNetwork.RCBuildingModel2(E(free=true, initialGuess = 0.0, min = 0.0),
-            Money(free=true, initialGuess = 0.0, min = 0.0));
+            Money(free=false, initialGuess = 0.0, min = 0.0));
             parameter Real Tmin = 273.15+20;
             parameter Real Tmax = 273.15+24;
         constraint
+            Money(startTime)=0.0;
             Tmix <= Tmax;
             Tmin <= Tmix;
             P_hvac <= 0;
-            -2e5 <= P_hvac;
+            -4e5 <= P_hvac;
         end BuildingMngmtOpt_E;
 
         optimization BuildingMngmtOpt_Money( objective = Money(finalTime), startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
@@ -189,7 +191,7 @@ package ElectricNetwork
             Tmix <= Tmax;
             Tmin <= Tmix;
             P_hvac <= 0;
-            -2e5 <= P_hvac;
+            -4e5 <= P_hvac;
         end BuildingMngmtOpt_Money;
 
 	

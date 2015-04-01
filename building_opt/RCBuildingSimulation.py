@@ -18,7 +18,7 @@ def getData(new_time, plot = False):
     """
     # get current directory
     curr_dir = os.path.dirname(os.path.abspath(__file__));
-    path_csv = os.path.join(curr_dir,"..","Data","DataWeather.csv")
+    path_csv = os.path.join(curr_dir,"..","Data","DataWeatherSacramento.csv")
     data = np.loadtxt(open(path_csv,"rb"), delimiter=",", skiprows=1)
     
     # Get time vector
@@ -191,17 +191,30 @@ def plot_sim_res(res):
     time = res["time"]
     Tbui = res["Tmix"]
     Tamb = res["u[2]"]
-    
+    price = res["price"]
+    price_max = np.max(price)
+    price_min = np.min(price)
+ 
     fig = plt.figure()
     ax = fig.add_subplot(111) 
     ax.plot(time/3600, Tbui, 'r', alpha=0.5, linewidth=2)
     ax.plot(time/3600, np.ones(len(time))*(273.15 + 20), 'b', alpha=0.5, linewidth=2)
     ax.plot(time/3600, np.ones(len(time))*(273.15 + 24), 'b', alpha=0.5, linewidth=2)
     ax.plot(time/3600, Tamb, 'g', alpha=0.5, linewidth=2)
+    
+    t0 = time[0]
+    t1 = time[-1]
+    T = np.arange(t0, t1, 3600.0)
+    price_T = np.interp(T, time, price)
+    alpha_max = 0.8
+    for i in range(2,len(T)):
+        a = (((price_T[i-1]+price_T[i])/2)-price_min)/(price_max - price_min)*alpha_max 
+        ax.fill_between([i-1, i], [0,0], [350,350], facecolor="#CC3300", alpha = a, linewidth = 0)  
+
     ax.set_xlabel('Time [hours]')
     ax.set_ylabel('Temperature [K]')
     ax.set_title("Temperature of the return air")
-    
+    ax.set_ylim([285,312])    
     plt.show()
     
     return
