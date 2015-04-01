@@ -6,7 +6,7 @@ Created on Apr 2, 2014
 import os
 
 from pymodelica import compile_fmu
-from pyjmi import load_fmu 
+from pyfmi import load_fmu 
 from pyjmi import transfer_optimization_problem 
 
 import matplotlib.pyplot as plt
@@ -39,6 +39,14 @@ def getData(new_time, plot = False):
     P_light_m2 = 16
     P_occ_m2 = 120/18.6
     ihg = (P_plug_m2+P_light_m2)*np.ones(len(time))
+    
+    # Price signal
+    t_price = np.array([0.0, 6.0, 8.0, 12.0, 13.0, 16.0, 18.0, 19.0, 22.0, 24.0])*3600.0
+    price =   np.array((0.5, 0.5, 0.6, 0.8,  1.0,  1.1,  0.8,  0.7,  0.5,  0.5)*7)
+    t_price = np.hstack((t_price, 24*3600 + t_price, 2*24*3600 + t_price, 3*24*3600 + t_price, 
+    4*24*3600 + t_price, 5*24*3600 + t_price, 6*24*3600 + t_price))
+
+    price = 0.22*np.interp(new_time, t_price, price)
     
     # Interpolate
     Tamb_new = np.interp(new_time, time, Tamb)
@@ -74,7 +82,7 @@ def getData(new_time, plot = False):
         
         plt.show()
     
-    return (Tamb_new, Tgnd_new, sRadS_new, sRadN_new, sRadW_new, sRadE_new, ihg_new)
+    return (Tamb_new, Tgnd_new, sRadS_new, sRadN_new, sRadW_new, sRadE_new, ihg_new, price)
 
 def run_simulation():
     """
@@ -82,9 +90,9 @@ def run_simulation():
     """
     
     # Get the weather data for the building model
-    time = np.linspace(0, 3600*24, 24*6, True)
-    (Tamb, Tgnd, sRadS, sRadN, sRadW, sRadE, ihg) = getData(time, plot = False)
-    
+    time = np.linspace(0, 3600*24*6, 24*6*6, True)
+    (Tamb, Tgnd, sRadS, sRadN, sRadW, sRadE, ihg, price) = getData(time, plot = False)
+    P_hvac = -1e5*np.ones(len(time)) 
     # get current directory
     curr_dir = os.path.dirname(os.path.abspath(__file__));
     
@@ -96,8 +104,8 @@ def run_simulation():
     model = load_fmu(fmu_model)
     
     # Solve the DAE initialization system
-    model.initialize()
-    
+    #model.initialize()
+    print "Skipped initialization"    
     # Build input trajectory matrix for use in simulation
     #  u[1] v_IG_Offices [W/m2]
     #  u[2] v_Tamb
@@ -107,14 +115,15 @@ def run_simulation():
     #  u[6] v_solGlobFac_S [W/m2]
     #  u[7] v_solGlobFac_W [W/m2]
     #  P_hvac
-    u = np.transpose(np.vstack((time, ihg, Tamb, Tgnd, sRadE, sRadN, sRadS, sRadW,)))
+    #  Price
+    u = np.transpose(np.vstack((time, ihg, Tamb, Tgnd, sRadE, sRadN, sRadS, sRadW, P_hvac, price)))
     
     # Simulate
-    res = model.simulate(input=(['u[1]', 'u[2]', 'u[3]', 'u[4]', 'u[5]', 'u[6]', 'u[7]',], u), start_time = time[0], final_time = time[-1])
+    res = model.simulate(input=(['u[1]', 'u[2]', 'u[3]', 'u[4]', 'u[5]', 'u[6]', 'u[7]', 'P_hvac', 'price'], u), start_time = time[0], final_time = time[-1])
     
     return res
 
-def run_optimization(sim_res):
+def run_optimization(sim_res, opt_problem = 'ElectricNetwork.BuildingMngmtOpt_E'):
     """
     This function runs an optimization problem
     """
@@ -123,15 +132,15 @@ def run_optimization(sim_res):
     from collections import OrderedDict
     
     # Get the weather data for the building model
-    time = np.linspace(0, 3600*24, 24*6, True)
-    (Tamb, Tgnd, sRadS, sRadN, sRadW, sRadE, ihg) = getData(time, plot = False)
+    time = np.linspace(0, 3600*24*6, 24*6*6, True)
+    (Tamb, Tgnd, sRadS, sRadN, sRadW, sRadE, ihg, price) = getData(time, plot = False)
     
     # get current directory
     curr_dir = os.path.dirname(os.path.abspath(__file__));
     
     # compile FMU
     path = os.path.join(curr_dir,"..","Models","ElectricalNetwork.mop")
-    op_model = transfer_optimization_problem('ElectricNetwork.BuildingMngmtOpt_E', path, compiler_options={"enable_variable_scaling":True})
+    op_model = transfer_optimization_problem(opt_problem, path, compiler_options={"enable_variable_scaling":True})
     
     # Get the inputs that should be eliminated from the optimization variables
     eliminated = OrderedDict()
@@ -156,12 +165,15 @@ def run_optimization(sim_res):
     
     data_sRadW = np.vstack([time, sRadW])
     eliminated['u[7]'] = data_sRadW
-    
+   
+    data_price = np.vstack([time, price])
+    eliminated['price'] = data_price
+ 
     measurement_data = MeasurementData(eliminated = eliminated)
     
     # define the optimization problem
     opts = op_model.optimize_options()
-    opts['n_e'] = 60
+    opts['n_e'] = 60*6
     opts['measurement_data'] = measurement_data
     opts['init_traj'] = sim_res.result_data
     
