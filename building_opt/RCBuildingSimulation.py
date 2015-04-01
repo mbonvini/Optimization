@@ -5,10 +5,9 @@ Created on Apr 2, 2014
 '''
 import os
 
-from pymodelica import compile_jmu
-from pymodelica import compile_fmux
-from pyjmi import JMUModel
-from pyjmi import CasadiModel
+from pymodelica import compile_fmu
+from pyjmi import load_fmu 
+from pyjmi import transfer_optimization_problem 
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -91,10 +90,10 @@ def run_simulation():
     
     # compile FMU
     path = os.path.join(curr_dir,"..","Models","ElectricalNetwork.mop")
-    jmu_model = compile_jmu('ElectricNetwork.RCBuildingModel2', path)
+    fmu_model = compile_fmu('ElectricNetwork.RCBuildingModel2', path)
 
     # Load the model instance into Python
-    model = JMUModel(jmu_model)
+    model = load_fmu(fmu_model)
     
     # Solve the DAE initialization system
     model.initialize()
@@ -109,9 +108,6 @@ def run_simulation():
     #  u[7] v_solGlobFac_W [W/m2]
     #  P_hvac
     u = np.transpose(np.vstack((time, ihg, Tamb, Tgnd, sRadE, sRadN, sRadS, sRadW,)))
-    
-    # Solve the DAE initialization system
-    model.initialize()
     
     # Simulate
     res = model.simulate(input=(['u[1]', 'u[2]', 'u[3]', 'u[4]', 'u[5]', 'u[6]', 'u[7]',], u), start_time = time[0], final_time = time[-1])
@@ -135,10 +131,7 @@ def run_optimization(sim_res):
     
     # compile FMU
     path = os.path.join(curr_dir,"..","Models","ElectricalNetwork.mop")
-    model_name = compile_jmu('ElectricNetwork.BuildingMngmtOpt_E', path, compiler_options={"enable_variable_scaling":True})
-    
-    # Load the model
-    model_jmu = JMUModel(model_name) 
+    op_model = transfer_optimization_problem('ElectricNetwork.BuildingMngmtOpt_E', path, compiler_options={"enable_variable_scaling":True})
     
     # Get the inputs that should be eliminated from the optimization variables
     eliminated = OrderedDict()
@@ -167,13 +160,13 @@ def run_optimization(sim_res):
     measurement_data = MeasurementData(eliminated = eliminated)
     
     # define the optimization problem
-    opts = model_jmu.optimize_options()
+    opts = op_model.optimize_options()
     opts['n_e'] = 60
-    #opts['measurement_data'] = measurement_data
+    opts['measurement_data'] = measurement_data
     opts['init_traj'] = sim_res.result_data
     
     # Get the results of the optimization
-    res = model_jmu.optimize(options = opts)
+    res = op_model.optimize(options = opts)
     
     plot_sim_res(res)
     
@@ -204,6 +197,6 @@ def plot_sim_res(res):
 if __name__ == '__main__':
     
     sim_res = run_simulation()
-    plot_sim_res(sim_res)
+    #plot_sim_res(sim_res)
     
     run_optimization(sim_res)
