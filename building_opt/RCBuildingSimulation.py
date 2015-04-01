@@ -19,7 +19,7 @@ def getData(new_time, plot = False):
     """
     # get current directory
     curr_dir = os.path.dirname(os.path.abspath(__file__));
-    path_csv = os.path.join(curr_dir,"..","..","Data","DataWeather.csv")
+    path_csv = os.path.join(curr_dir,"..","Data","DataWeather.csv")
     data = np.loadtxt(open(path_csv,"rb"), delimiter=",", skiprows=1)
     
     # Get time vector
@@ -90,7 +90,7 @@ def run_simulation():
     curr_dir = os.path.dirname(os.path.abspath(__file__));
     
     # compile FMU
-    path = os.path.join(curr_dir,"..","..","Models","ElectricalNetwork.mop")
+    path = os.path.join(curr_dir,"..","Models","ElectricalNetwork.mop")
     jmu_model = compile_jmu('ElectricNetwork.RCBuildingModel2', path)
 
     # Load the model instance into Python
@@ -134,7 +134,7 @@ def run_optimization(sim_res):
     curr_dir = os.path.dirname(os.path.abspath(__file__));
     
     # compile FMU
-    path = os.path.join(curr_dir,"..","..","Models","ElectricalNetwork.mop")
+    path = os.path.join(curr_dir,"..","Models","ElectricalNetwork.mop")
     model_name = compile_jmu('ElectricNetwork.BuildingMngmtOpt_E', path, compiler_options={"enable_variable_scaling":True})
     
     # Load the model

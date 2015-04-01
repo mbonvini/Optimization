@@ -19,7 +19,7 @@ def getData(new_time, plot = False):
     """
     # get current directory
     curr_dir = os.path.dirname(os.path.abspath(__file__));
-    path_csv = os.path.join(curr_dir,"..","..","Data","DataExample.csv")
+    path_csv = os.path.join(curr_dir,"..","Data","DataExample.csv")
     data = np.loadtxt(open(path_csv,"rb"), delimiter=",", skiprows=1)
     
     # Get time vector
@@ -86,7 +86,7 @@ def run_simulation_with_inputs(time, price, pv, bldg, plot = False, usePV = True
     curr_dir = os.path.dirname(os.path.abspath(__file__));
     
     # compile FMU
-    path = os.path.join(curr_dir,"..","..","Models","ElectricalNetwork.mop")
+    path = os.path.join(curr_dir,"..","Models","ElectricalNetwork.mop")
     jmu_model = compile_jmu('ElectricNetwork.ACnetwork', path)
 
     # Load the model instance into Python
@@ -322,7 +322,7 @@ def run_optimization(sim_res, time, price, pv, bldg, plot = True, usePV = True):
         pv = np.zeros(np.shape(pv))
     
     # compile FMU
-    path = os.path.join(curr_dir,"..","..","Models","ElectricalNetwork.mop")
+    path = os.path.join(curr_dir,"..","Models","ElectricalNetwork.mop")
     model_name = compile_fmux('ElectricNetwork.ACnetworkBatteryMngmtOpt_Money', path, compiler_options={"enable_variable_scaling":True})
     
     # Load the model
