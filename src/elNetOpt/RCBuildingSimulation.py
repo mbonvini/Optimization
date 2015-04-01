@@ -83,7 +83,7 @@ def run_simulation():
     """
     
     # Get the weather data for the building model
-    time = np.linspace(0, 3600*6*24, 24*7*6, True)
+    time = np.linspace(0, 3600*24, 24*6, True)
     (Tamb, Tgnd, sRadS, sRadN, sRadW, sRadE, ihg) = getData(time, plot = False)
     
     # get current directory
@@ -91,7 +91,7 @@ def run_simulation():
     
     # compile FMU
     path = os.path.join(curr_dir,"..","..","Models","ElectricalNetwork.mop")
-    jmu_model = compile_jmu('ElectricNetwork.RCBuildingModel8', path)
+    jmu_model = compile_jmu('ElectricNetwork.RCBuildingModel2', path)
 
     # Load the model instance into Python
     model = JMUModel(jmu_model)
@@ -107,13 +107,75 @@ def run_simulation():
     #  u[5] v_solGlobFac_N [W/m2]
     #  u[6] v_solGlobFac_S [W/m2]
     #  u[7] v_solGlobFac_W [W/m2]
-    u = np.transpose(np.vstack((time, ihg, Tamb, Tgnd, sRadE, sRadN, sRadS, sRadW)))
+    #  P_hvac
+    u = np.transpose(np.vstack((time, ihg, Tamb, Tgnd, sRadE, sRadN, sRadS, sRadW,)))
     
     # Solve the DAE initialization system
     model.initialize()
     
     # Simulate
-    res = model.simulate(input=(['u[1]', 'u[2]', 'u[3]', 'u[4]', 'u[5]', 'u[6]', 'u[7]'], u), start_time = time[0], final_time = time[-1])
+    res = model.simulate(input=(['u[1]', 'u[2]', 'u[3]', 'u[4]', 'u[5]', 'u[6]', 'u[7]',], u), start_time = time[0], final_time = time[-1])
+    
+    return res
+
+def run_optimization(sim_res):
+    """
+    This function runs an optimization problem
+    """
+    
+    from pyjmi.optimization.casadi_collocation import MeasurementData
+    from collections import OrderedDict
+    
+    # Get the weather data for the building model
+    time = np.linspace(0, 3600*24, 24*6, True)
+    (Tamb, Tgnd, sRadS, sRadN, sRadW, sRadE, ihg) = getData(time, plot = False)
+    
+    # get current directory
+    curr_dir = os.path.dirname(os.path.abspath(__file__));
+    
+    # compile FMU
+    path = os.path.join(curr_dir,"..","..","Models","ElectricalNetwork.mop")
+    model_name = compile_jmu('ElectricNetwork.BuildingMngmtOpt_E', path, compiler_options={"enable_variable_scaling":True})
+    
+    # Load the model
+    model_jmu = JMUModel(model_name) 
+    
+    # Get the inputs that should be eliminated from the optimization variables
+    eliminated = OrderedDict()
+    
+    data_ihg = np.vstack([time, ihg])
+    eliminated['u[1]'] = data_ihg
+    
+    data_Tamb = np.vstack([time, Tamb])
+    eliminated['u[2]'] = data_Tamb
+    
+    data_Tgnd = np.vstack([time, Tgnd])
+    eliminated['u[3]'] = data_Tgnd
+    
+    data_sRadE = np.vstack([time, sRadE])
+    eliminated['u[4]'] = data_sRadE
+    
+    data_sRadN = np.vstack([time, sRadN])
+    eliminated['u[5]'] = data_sRadN
+    
+    data_sRadS = np.vstack([time, sRadS])
+    eliminated['u[6]'] = data_sRadS
+    
+    data_sRadW = np.vstack([time, sRadW])
+    eliminated['u[7]'] = data_sRadW
+    
+    measurement_data = MeasurementData(eliminated = eliminated)
+    
+    # define the optimization problem
+    opts = model_jmu.optimize_options()
+    opts['n_e'] = 60
+    #opts['measurement_data'] = measurement_data
+    opts['init_traj'] = sim_res.result_data
+    
+    # Get the results of the optimization
+    res = model_jmu.optimize(options = opts)
+    
+    plot_sim_res(res)
     
     return res
 
@@ -143,3 +205,5 @@ if __name__ == '__main__':
     
     sim_res = run_simulation()
     plot_sim_res(sim_res)
+    
+    run_optimization(sim_res)
