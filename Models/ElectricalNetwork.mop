@@ -104,11 +104,10 @@ package ElectricNetwork
 	  Real COP "Nominal Coefficient of performance of the HVAC system";
 	  Modelica.Blocks.Interfaces.RealInput P_hvac "Cooling/Heating power supplied by the HVAC system";
 	  Modelica.Blocks.Interfaces.RealOutput P_el "Electric power consumed by the HVAC system";
-	  Modelica.Blocks.Interfaces.RealOutput E(start = 0.0) "Energy consumed by the HVAC in kWh";
+	  Modelica.Blocks.Interfaces.RealOutput E(start = 0.0, fixed = true) "Energy consumed by the HVAC in kWh";
 	  Modelica.Blocks.Interfaces.RealInput price "Price of kWh"; 
-          Real Money(start = 0.0) "Money spent";
-	  parameter Modelica.SIunits.Temperature Tstart 
-	    "Initial temperatures of all the elements";
+      Real Money(start = 0.0, fixed = true) "Money spent";
+	  parameter Modelica.SIunits.Temperature Tstart "Initial temperatures of all the elements";
 	  parameter Integer N "Number of state variables";
 	  parameter Integer M "Number of inputs";
 	  parameter Integer O = N + 1 "Number of outputs";
@@ -170,30 +169,139 @@ package ElectricNetwork
 	end RCBuildingModel8;
 	
 	optimization BuildingMngmtOpt_E( objective = E(finalTime), startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
-            extends ElectricNetwork.RCBuildingModel2(E(free=true, initialGuess = 0.0, min = 0.0),
-            Money(free=false, initialGuess = 0.0, min = 0.0));
-            parameter Real Tmin = 273.15+20;
-            parameter Real Tmax = 273.15+24;
-        constraint
-            Money(startTime)=0.0;
-            Tmix <= Tmax;
-            Tmin <= Tmix;
-            P_hvac <= 0;
-            -4e5 <= P_hvac;
-        end BuildingMngmtOpt_E;
+        extends ElectricNetwork.RCBuildingModel2(E(free=true, initialGuess = 0.0, min = 0.0),
+        Money(free=false, initialGuess = 0.0, min = 0.0));
+        parameter Real Tmin = 273.15+20;
+        parameter Real Tmax = 273.15+24;
+    constraint
+        Money(startTime)=0.0;
+        Tmix <= Tmax;
+        Tmin <= Tmix;
+        P_hvac <= 0;
+        -4e5 <= P_hvac;
+    end BuildingMngmtOpt_E;
 
-        optimization BuildingMngmtOpt_Money( objective = Money(finalTime), startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
-            extends ElectricNetwork.RCBuildingModel2(E(free=true, initialGuess = 0.0, min = 0.0),
-            Money(free=true, initialGuess = 0.0, min = 0.0));
-            parameter Real Tmin = 273.15+20;
-            parameter Real Tmax = 273.15+24;
-        constraint
-            Tmix <= Tmax;
-            Tmin <= Tmix;
-            P_hvac <= 0;
-            -4e5 <= P_hvac;
-        end BuildingMngmtOpt_Money;
+    optimization BuildingMngmtOpt_Money( objective = Money(finalTime), startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
+        extends ElectricNetwork.RCBuildingModel2(E(free=true, initialGuess = 0.0, min = 0.0),
+        Money(free=true, initialGuess = 0.0, min = 0.0));
+        parameter Real Tmin = 273.15+20;
+        parameter Real Tmax = 273.15+24;
+    constraint
+        Tmix <= Tmax;
+        Tmin <= Tmix;
+        P_hvac <= 0;
+        -4e5 <= P_hvac;
+    end BuildingMngmtOpt_Money;
 
+	
+	model District
+		"Model of a district system, buildings + electrical network"
+		// Parameters
+		parameter Real R1 = 1.8*1.2 "Line resistance 1";
+        parameter Real R2 = 1.8*1.1 "Line resistance 2";
+        parameter Real R3 = 1.8*1.05 "Line resistance 3";
+        parameter Real ratio1 = 1 "power ratio PV panels 1";
+        parameter Real ratio2 = 1 "power ratio PV panels 2";
+        parameter Real ratio3 = 1 "power ratio PV panels 3";
+        parameter Modelica.SIunits.Power P1 = 220000 "Nominal power production building 1";
+        parameter Modelica.SIunits.Power P2 = 175000 "Nominal power production building 2";
+        parameter Modelica.SIunits.Power P3 = 190000 "Nominal power production building 3";
+        parameter Real A1 = P1*ratio1/(effPV*Qrad) "Area with PV panels 1";
+        parameter Real A2 = P2*ratio2/(effPV*Qrad) "Area with PV panels 2";
+        parameter Real A3 = P3*ratio3/(effPV*Qrad) "Area with PV panels 3";
+        parameter Modelica.SIunits.Voltage Vs = 4800 "Voltage source";
+	    parameter Real effPV = 0.9*0.12 "Efficiency of PV panels";
+	  	parameter Modelica.SIunits.Power Qrad = 1000 "Maximum solar radiation per square meter";
+	  	
+	  	// Variables
+	  	Real E(start = 0.0, fixed = true) "Electric energy consumed by the district";
+	  	Real Money(start = 0.0, fixed = true) "Money to run the district"; 
+	  	
+	  	// Inputs & outputs
+	    Modelica.Blocks.Interfaces.RealInput price "Price of kWh"; 
+	  	Modelica.Blocks.Interfaces.RealInput P_hvac_1 "Cooling/Heating power supplied by the HVAC system in building 1";
+	  	Modelica.Blocks.Interfaces.RealInput P_hvac_2 "Cooling/Heating power supplied by the HVAC system in building 2";
+	  	Modelica.Blocks.Interfaces.RealInput P_hvac_3 "Cooling/Heating power supplied by the HVAC system in building 3";
+	  	Modelica.Blocks.Interfaces.RealInput ihg_1 "Internal heat gains for building 1";
+	  	Modelica.Blocks.Interfaces.RealInput ihg_2 "Internal heat gains for building 2";
+	  	Modelica.Blocks.Interfaces.RealInput ihg_3 "Internal heat gains for building 3";
+	    Modelica.Blocks.Interfaces.RealInput Tamb;
+	    Modelica.Blocks.Interfaces.RealInput Tgnd;
+	    Modelica.Blocks.Interfaces.RealInput solGlobFac_E;
+	    Modelica.Blocks.Interfaces.RealInput solGlobFac_N;
+	    Modelica.Blocks.Interfaces.RealInput solGlobFac_S;
+	    Modelica.Blocks.Interfaces.RealInput solGlobFac_W;
+	  	
+	  	// Models
+	  	ElectricNetwork.RCBuildingModel2 bui1 "Building 1";
+		ElectricNetwork.RCBuildingModel2 bui2 "Building 2";
+		ElectricNetwork.RCBuildingModel2 bui3 "Building 3";
+	  	
+		ElectricNetwork.Source S(Vrms=Vs);
+		
+		ElectricNetwork.Load bldg1(Vn=Vs);
+		ElectricNetwork.Load bldg2(Vn=Vs);
+		ElectricNetwork.Load bldg3(Vn=Vs);
+		
+		ElectricNetwork.Load pv1(Vn=Vs);
+		ElectricNetwork.Load pv2(Vn=Vs);
+		ElectricNetwork.Load pv3(Vn=Vs);
+		
+		ElectricNetwork.Line line1(R=R1, X=R1/10);
+		ElectricNetwork.Line line2(R=R2, X=R2/12);
+		ElectricNetwork.Line line3(R=R3, X=R3/10);
+		
+	equation
+	
+		// Energy and money to run the district
+		der(Money) = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2])*price/1000.0/3600.0;
+		der(E) = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2])/1000.0/3600.0;
+		
+	    // Connect the lines to the source
+		connect(S.p,     line1.a);
+		connect(line1.b, line2.a);
+		connect(line2.b, line3.a);
+		
+		// Connect each building and PVs
+		connect(bldg1.p, line1.b);
+		connect(pv1.p, line1.b);
+		
+		connect(bldg2.p, line2.b);
+		connect(pv2.p, line2.b);
+		
+		connect(bldg3.p, line3.b);
+		connect(pv3.p, line3.b);
+		
+		// Connect the external weather inputs to the buildings
+		bui1.price = price;      bui2.price = price;      bui3.price = price;
+		bui1.P_hvac = P_hvac_1;  bui2.P_hvac = P_hvac_2;  bui3.P_hvac = P_hvac_3; 
+		bui1.u[1] = ihg_1;       bui2.u[1] = ihg_2;       bui3.u[1] = ihg_3;
+		bui1.u[2] = Tamb;        bui2.u[2] = Tamb;        bui3.u[2] = Tamb;
+		bui1.u[3] = Tgnd;        bui2.u[3] = Tgnd;        bui3.u[3] = Tgnd;
+		bui1.u[4] = solGlobFac_E;bui2.u[4] = solGlobFac_E;bui3.u[4] = solGlobFac_E;
+		bui1.u[5] = solGlobFac_N;bui2.u[5] = solGlobFac_N;bui3.u[5] = solGlobFac_N;
+		bui1.u[6] = solGlobFac_S;bui2.u[6] = solGlobFac_S;bui3.u[6] = solGlobFac_S;
+		bui1.u[7] = solGlobFac_W;bui2.u[7] = solGlobFac_W;bui3.u[7] = solGlobFac_W;
+		
+		// Use the building electric power as input power for the electric models
+		bldg1.P = bui1.P_el;
+		bldg1.Q = bui1.P_el/8.0;
+		
+		bldg2.P = bui2.P_el;
+		bldg2.Q = bui2.P_el/9.0;
+		
+		bldg3.P = bui3.P_el;
+		bldg3.Q = bui3.P_el/10.0;
+		
+		// Use the solar radiation as inputs for the PVs
+		pv1.P = (solGlobFac_E*0.3 + 0.7*solGlobFac_S)*A1*effPV;
+		pv1.Q = 0;
+		pv2.P = (solGlobFac_W*0.2 + 0.8*solGlobFac_S)*A2*effPV;
+		pv2.Q = 0;
+		pv3.P = (solGlobFac_E*0.2 + 0.8*solGlobFac_S)*A3*effPV;
+		pv3.Q = 0;
+		
+	end District;
 	
 	model Battery
 		extends ElectricNetwork.Load;
