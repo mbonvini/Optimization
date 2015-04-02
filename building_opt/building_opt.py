@@ -92,20 +92,18 @@ def run_simulation():
     # Get the weather data for the building model
     time = np.linspace(0, 3600*24*6, 24*6*6, True)
     (Tamb, Tgnd, sRadS, sRadN, sRadW, sRadE, ihg, price) = getData(time, plot = False)
-    P_hvac = -1e5*np.ones(len(time)) 
-    # get current directory
+    P_hvac = -1e5*np.ones(len(time))
+    
+    # Get current directory
     curr_dir = os.path.dirname(os.path.abspath(__file__));
     
-    # compile FMU
+    # Compile FMU
     path = os.path.join(curr_dir,"..","Models","ElectricalNetwork.mop")
     fmu_model = compile_fmu('ElectricNetwork.RCBuildingModel2', path)
 
     # Load the model instance into Python
     model = load_fmu(fmu_model)
     
-    # Solve the DAE initialization system
-    #model.initialize()
-    print "Skipped initialization"    
     # Build input trajectory matrix for use in simulation
     #  u[1] v_IG_Offices [W/m2]
     #  u[2] v_Tamb
