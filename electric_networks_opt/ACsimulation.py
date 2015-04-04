@@ -366,7 +366,7 @@ def run_optimization(sim_res, time, price, pv, bldg, plot = True, usePV = True):
     
     return res
 
-if __name__ == '__main__':
+def run():
     #run_simulation()
     #res = run_simulation_with_inputs()
     #run_optimization(res)
@@ -407,3 +407,6 @@ if __name__ == '__main__':
     plotComparison(res_opt_noPV, res_opt_PV, res_sim_PV)
     
     plt.show()
+    
+if __name__ == '__main__':
+    run()
