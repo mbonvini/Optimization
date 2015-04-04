@@ -252,9 +252,9 @@ package ElectricNetwork
 		"Model of a district system, buildings + electrical network"
 		// Parameters
                 parameter Real Tsp_bui = 273.15 + 22;
-	parameter Real R1 = 1.2 "Line resistance 1";
-        parameter Real R2 = 1.1 "Line resistance 2";
-        parameter Real R3 = 1.05 "Line resistance 3";
+	parameter Real R1 = 1.5*1.2 "Line resistance 1";
+        parameter Real R2 = 1.5*1.1 "Line resistance 2";
+        parameter Real R3 = 1.5*1.05 "Line resistance 3";
         parameter Real ratio1 = 1 "power ratio PV panels 1";
         parameter Real ratio2 = 1 "power ratio PV panels 2";
         parameter Real ratio3 = 1 "power ratio PV panels 3";
@@ -267,7 +267,9 @@ package ElectricNetwork
         parameter Modelica.SIunits.Voltage Vs = 4800 "Voltage source";
 	    parameter Real effPV = 0.9*0.12 "Efficiency of PV panels";
 	  	parameter Modelica.SIunits.Power Qrad = 1000 "Maximum solar radiation per square meter";
-	  	
+	        parameter Modelica.SIunits.Energy Ebatt = (P1+P2+P3)*3*3600 "Battery storage capacity";
+                parameter Real SOCstart = 0.5;
+ 	
 	  	// Variables
 	  	Real E(start = 0.0, fixed = true) "Electric energy consumed by the district";
 	  	Real Money(start = 0.0, fixed = true) "Money to run the district"; 
@@ -283,12 +285,16 @@ package ElectricNetwork
 	    Modelica.Blocks.Interfaces.RealInput solGlobFac_N;
 	    Modelica.Blocks.Interfaces.RealInput solGlobFac_S;
 	    Modelica.Blocks.Interfaces.RealInput solGlobFac_W;
-	  	
+	    Modelica.Blocks.Interfaces.RealInput Tsp;
+            Modelica.Blocks.Interfaces.RealInput P_batt;
+	
 	  	// Models
 	  	ElectricNetwork.RCBuildingModel2 bui1(ihg_el_ratio=0.6) "Building 1";
 		ElectricNetwork.RCBuildingModel2 bui2(ihg_el_ratio=0.5) "Building 2";
 		ElectricNetwork.RCBuildingModel2 bui3(ihg_el_ratio=0.7) "Building 3";
-	  	
+	        
+                ElectricNetwork.Battery batt(Vn=Vs, SOCstart=SOCstart, Ebatt=Ebatt);
+	
 		ElectricNetwork.Source S(Vrms=Vs);
 		
 		ElectricNetwork.Load bldg1(Vn=Vs);
@@ -330,6 +336,13 @@ package ElectricNetwork
 		
 		connect(bldg3.p, line3.b);
 		connect(pv3.p, line3.b);
+                
+                // Connect battery to the last element of the line
+                connect(batt.p, line3.b);
+
+                // Use input for battery SOC control
+                batt.P = P_batt;
+                batt.Q = 0;
 		
 		// Connect the external weather inputs to the buildings
 		bui1.price = price;      bui2.price = price;      bui3.price = price;
@@ -343,21 +356,21 @@ package ElectricNetwork
 
                 // Control the building 1
                 bui1.P_hvac = pi1_up.cs;// + pi1_low.cs;
-                pi1_up.sp = Tsp_bui;
+                pi1_up.sp = Tsp;
                 pi1_up.pv = bui1.Tmix;	
                 //pi1_low.sp = 273.15 + 20;
                 //pi1_low.pv = bui1.Tmix;
                 
                 // Control the building 2 
                 bui2.P_hvac = pi2_up.cs;// + pi2_low.cs;
-                pi2_up.sp = Tsp_bui;
+                pi2_up.sp = Tsp;
                 pi2_up.pv = bui2.Tmix;	
                 //pi2_low.sp = 273.15 + 20;
                 //pi2_low.pv = bui2.Tmix;
 
                 // Control the building 3 
                 bui3.P_hvac = pi3_up.cs;// + pi3_low.cs;
-                pi3_up.sp = Tsp_bui; 
+                pi3_up.sp = Tsp; 
                 pi3_up.pv = bui3.Tmix;	
                 //pi3_low.sp = 273.15 + 20;
                 //pi3_low.pv = bui3.Tmix;
@@ -382,13 +395,25 @@ package ElectricNetwork
 		
 	end District;
 
-        optimization OptimizationDistrict_E( objective = E(finalTime), startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
+        optimization OptimizationDistrict_E( objective = E(finalTime), startTime = 0.0, finalTime = 24.0*3600.0 )
             extends ElectricNetwork.District(E(free=true, initialGuess = 0.0, min = 0.0),
-            Money(free=false, initialGuess = 0.0, min = 0.0));
-            parameter Real Tmin = 273.15+20;
-            parameter Real Tmax = 273.15+24;
+            Money(free=false, initialGuess = 0.0, min = 0.0),
+            SOCstart(free = true, initialGuess = 0.5, min = 0.2, max = 1.0));
+            parameter Real tol = 0.05;
+            parameter Real Pmax_charge = 1e5;
         constraint
             Money(startTime)=0.0;
+            batt.SOC <= 1.0;
+            0.1 <= batt.SOC;
+            batt.P <= Pmax_charge;
+            -Pmax_charge <= batt.P;
+            batt.SOC(finalTime) = batt.SOC(startTime);
+            bldg1.Vrms <= bldg1.Vn*1.05;
+            bldg2.Vrms <= bldg2.Vn*1.05;
+            bldg3.Vrms <= bldg3.Vn*1.05;
+            bldg1.Vn*0.95 <= bldg1.Vrms;
+            bldg2.Vn*0.95 <= bldg2.Vrms;
+            bldg3.Vn*0.95 <= bldg3.Vrms;    
         end OptimizationDistrict_E;
 	
 	model Battery

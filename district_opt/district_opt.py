@@ -170,9 +170,11 @@ def run_simulation():
     """
     
     # Get the weather data and other inputs for the building model
-    time = np.linspace(0, 3600*24*6, 24*6*6, True)
+    time = np.linspace(0, 3600*24, 24*6*6, True)
     (Tamb, Tgnd, sRadS, sRadN, sRadW, sRadE, ihg_1, ihg_2, ihg_3, price) = getData(time, plot = False)
-    
+    Tsp = (273.15+22)*np.ones(len(time))
+    P_batt = 0*np.ones(len(time))
+ 
     # Get current directory
     curr_dir = os.path.dirname(os.path.abspath(__file__));
     
@@ -185,6 +187,8 @@ def run_simulation():
         
     # Build input trajectory matrix for use in simulation
     #
+    # Tsp Set point temperature for the buildings in K
+    # P_batt power to charge or discharge the battery
     # price "Price of kWh"; 
     # ihg_1 "Internal heat gains for building 1";
     # ihg_2 "Internal heat gains for building 2";
@@ -195,11 +199,11 @@ def run_simulation():
     # solGlobFac_N;
     # solGlobFac_S;
     # solGlobFac_W;
-    u = np.transpose(np.vstack((time, ihg_1, ihg_2, ihg_3, 
+    u = np.transpose(np.vstack((time, ihg_1, ihg_2, ihg_3, Tsp, P_batt, 
                                 Tamb, Tgnd, sRadE, sRadN, sRadS, sRadW, price)))
     
     # Simulate
-    res = model.simulate(input=(['ihg_1', 'ihg_2', 'ihg_3', 
+    res = model.simulate(input=(['ihg_1', 'ihg_2', 'ihg_3', 'Tsp', 'P_batt',
                                  'Tamb', 'Tgnd', 'solGlobFac_E', 'solGlobFac_N', 'solGlobFac_S', 'solGlobFac_W', 'price'], u), 
                          start_time = time[0], final_time = time[-1])
     
@@ -214,9 +218,10 @@ def run_optimization(sim_res, opt_problem = 'ElectricNetwork.OptimizationDistric
     from collections import OrderedDict
     
     # Get the weather data and other inputs for the building model
-    time = np.linspace(0, 3600*24*6, 24*6*6, True)
+    time = np.linspace(0, 3600*24, 24*6*6, True)
     (Tamb, Tgnd, sRadS, sRadN, sRadW, sRadE, ihg_1, ihg_2, ihg_3, price) = getData(time, plot = False)
-    
+    Tsp = (273.15 + 22)*np.ones(len(time)) 
+ 
     # get current directory
     curr_dir = os.path.dirname(os.path.abspath(__file__));
     
@@ -227,6 +232,9 @@ def run_optimization(sim_res, opt_problem = 'ElectricNetwork.OptimizationDistric
     # Get the inputs that should be eliminated from the optimization variables
     eliminated = OrderedDict()
     
+    data_Tsp = np.vstack([time, Tsp])
+    eliminated['Tsp'] = data_Tsp
+ 
     data_ihg_1 = np.vstack([time, ihg_1])
     eliminated['ihg_1'] = data_ihg_1
     
@@ -261,7 +269,7 @@ def run_optimization(sim_res, opt_problem = 'ElectricNetwork.OptimizationDistric
     
     # define the optimization problem
     opts = op_model.optimize_options()
-    opts['n_e'] = 60*6
+    opts['n_e'] = 60*2
     opts['measurement_data'] = measurement_data
     opts['init_traj'] = sim_res.result_data
     
