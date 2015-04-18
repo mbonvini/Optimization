@@ -26,57 +26,144 @@ package ElectricNetwork
    	end derivative;
 
 	function smooth_max
-	    input Real a;
-	    input Real b;
-	    output Real y;
-	  protected 
-	     Real x;
-	     Real alpha;
-	     parameter Real delta = 0.1;
-	  algorithm 
-	     x := (a - b)/delta;
-	     alpha := (atan(x)/asin(1) + 1)/2;
-	     y := alpha*a + (1-alpha)*b;
-	  end smooth_max;
+		input Real a;
+		input Real b;
+		output Real y;
+	protected 
+		Real x;
+		Real alpha;
+		parameter Real delta = 0.1;
+	algorithm 
+		x := (a - b)/delta;
+		alpha := (atan(x)/asin(1) + 1)/2;
+		y := alpha*a + (1-alpha)*b;
+		annotation(smoothOrder = 2,
+		derivative = der_smooth_max);
+	end smooth_max;
+	
+	function der_smooth_max
+		input Real a;
+		input Real b;
+		input Real der_a;
+		input Real der_b;
+		output Real out;
+	protected
+		parameter Real delta = 0.1;
+		Real alpha;
+		Real x;
+	algorithm
+		x := (a - b)/delta;
+		alpha := (atan(x)/asin(1) + 1)/2;
+		out := alpha*der_a - alpha*der_b;
+		annotation(smoothOrder = 1,
+		derivative(order = 2) = der_der_smooth_max);
+	end der_smooth_max;
 
-	  function smooth_min
-	    input Real a;
-	    input Real b;
-	    output Real y;
-	 protected 
-            Real x;
-            Real alpha;
-            parameter Real delta = 0.1;
-         algorithm 
-            x := (a - b)/delta;
-            alpha := (atan(x)/asin(1) + 1)/2;
-            y := alpha*b + (1-alpha)*a; 
-          end smooth_min;
+	function der_der_smooth_max
+		input Real a;
+		input Real b;
+		input Real der_a;
+		input Real der_b;
+		input Real der_2_a;
+		input Real der_2_b;
+		output Real out;
+	protected
+		parameter Real delta = 0.1;
+		Real alpha;
+		Real der_alpha;
+		Real x;
+	algorithm
+		x := (a - b)/delta;
+		alpha := (atan(x)/asin(1) + 1)/2;
+		der_alpha := 1/asin(1)/(x^2 + 1);
+		out := der_alpha*der_a + alpha*der_2_a - (der_alpha*der_b + alpha*der_2_b);
+		annotation(smoothOrder = 0);
+	end der_der_smooth_max;
 
-	  function smooth_lim
-	    input Real u;
-	    input Real M;
-	    input Real m;
-	    output Real y;
-	  algorithm 
-	    y := ElectricNetwork.smooth_max(m, ElectricNetwork.smooth_min(M, u));
-	  end smooth_lim;
+	function smooth_min
+		input Real a;
+		input Real b;
+		output Real y;
+	protected 
+		Real x;
+		Real alpha;
+		parameter Real delta = 0.1;
+	algorithm 
+		x := (a - b)/delta;
+		alpha := (atan(x)/asin(1) + 1)/2;
+		y := alpha*b + (1-alpha)*a;
+		annotation(smoothOrder = 2,
+		derivative = der_smooth_min);
+	end smooth_min;
 
-	  model smooth_lim_PI
-	    Modelica.Blocks.Interfaces.RealInput sp;
-	    Modelica.Blocks.Interfaces.RealInput pv;
-	    Modelica.Blocks.Interfaces.RealOutput cs;
-	    parameter Real K = 1;
-	    parameter Real Ti = 10;
-	    parameter Real CS_start = 0;
-	    parameter Real CS_max = 1;
-	    parameter Real CS_min = 0;
-	  protected 
-	    Real f_cs(start = CS_start, fixed = true);
-	  equation 
-	    cs = ElectricNetwork.smooth_lim(K*(sp - pv) + f_cs, CS_max, CS_min);
-	    f_cs + Ti*der(f_cs) = cs;
-	  end smooth_lim_PI;
+	function der_smooth_min
+		input Real a;
+		input Real b;
+		input Real der_a;
+		input Real der_b;
+		output Real out;
+	protected
+		parameter Real delta = 0.1;
+		Real alpha;
+		Real x;
+	algorithm
+		x := (a - b)/delta;
+		alpha := (atan(x)/asin(1) + 1)/2;
+		out := alpha*der_b - alpha*der_a;
+		annotation(smoothOrder = 1,
+		derivative(order = 2) = der_der_smooth_min);
+	end der_smooth_min;
+
+	function der_der_smooth_min
+		input Real a;
+		input Real b;
+		input Real der_a;
+		input Real der_b;
+		input Real der_2_a;
+		input Real der_2_b;
+		output Real out;
+	protected
+		parameter Real delta = 0.1;
+		Real alpha;
+		Real der_alpha;
+		Real x;
+	algorithm
+		x := (a - b)/delta;
+		alpha := (atan(x)/asin(1) + 1)/2;
+		der_alpha := 1/asin(1)/(x^2 + 1);
+		out := der_alpha*der_b + alpha*der_2_b - (der_alpha*der_a + alpha*der_2_a);
+		annotation(smoothOrder = 0);
+	end der_der_smooth_min;
+
+	function smooth_lim
+		input Real u;
+		input Real M;
+		input Real m;
+		output Real y;
+	algorithm 
+		y := ElectricNetwork.smooth_max(m, ElectricNetwork.smooth_min(M, u));
+	end smooth_lim;
+
+	model smooth_lim_PI
+		Modelica.Blocks.Interfaces.RealInput sp;
+		Modelica.Blocks.Interfaces.RealInput pv;
+		Modelica.Blocks.Interfaces.RealOutput cs;
+		parameter Real K = 1;
+		parameter Real Ti = 10;
+		parameter Real b = 1.0;
+		parameter Real CS_start = 0;
+		parameter Real CS_max = 1;
+		parameter Real CS_min = 0;
+	protected 
+		Real f_cs;
+	initial equation
+		f_cs = CS_start - K*(b*sp - pv);
+	equation 
+		cs = ElectricNetwork.smooth_lim(K*(b*sp - pv) + f_cs, CS_max, CS_min);
+		//cs = max(CS_min, min(K*(b*sp - pv) + f_cs, CS_max));
+		//cs = K*(b*sp - pv) + f_cs;
+		f_cs + Ti*der(f_cs) = cs;
+	end smooth_lim_PI;
 	
 	connector Pin
 		Modelica.SIunits.Voltage v[2];
@@ -118,6 +205,16 @@ package ElectricNetwork
 	    p.i[2] = -(p.v[2]*P - p.v[1]*Q)/(p.v[1]^2 + p.v[2]^2);
 	end Load;
 	
+	model Battery
+		extends ElectricNetwork.Load;
+		parameter Modelica.SIunits.Energy Ebatt = 100 "Storage capacity for the battery";
+		parameter Real SOCstart = 0.5;
+		Real SOC(start = SOCstart, fixed = true, min = 0, max = 1);
+	equation
+		// Ideal battery model
+		Ebatt*der(SOC) = -P;
+	end Battery;
+	
 	block StateSpace "Linear state space system"
 	  parameter Real A[:, size(A, 1)]=[1, 0; 0, 1] 
 	    "Matrix A of state space model (e.g., A=[1, 0; 0, 1])";
@@ -142,8 +239,8 @@ package ElectricNetwork
 	  der(x) = A*x + B*u;
 	  y = C*x + D*u;
 	end StateSpace;
-	
-	partial model BaseBuilding 
+
+	partial model BaseBuilding
 	  "Base class for a linearized model described by A,B matrices"
 	  //
 	  //  u[1] v_IG_Offices [W/m2]
@@ -153,14 +250,20 @@ package ElectricNetwork
 	  //  u[5] v_solGlobFac_N [W/m2]
 	  //  u[6] v_solGlobFac_S [W/m2]
 	  //  u[7] v_solGlobFac_W [W/m2]
-          parameter Modelica.SIunits.Area A_tot "Area of the building";
-          parameter Real ihg_el_ratio = 0.5 "Fraction of ihg power that is also electrical";
-	  Real COP "Nominal Coefficient of performance of the HVAC system";
+	  //
 	  Modelica.Blocks.Interfaces.RealInput P_hvac "Cooling/Heating power supplied by the HVAC system";
+	  Modelica.Blocks.Interfaces.RealInput P_batt "Power used to charge and discharge the battery";
 	  Modelica.Blocks.Interfaces.RealOutput P_el "Electric power consumed by the HVAC system";
 	  Modelica.Blocks.Interfaces.RealOutput E(start = 0.0, fixed = true) "Energy consumed by the HVAC in kWh";
-	  Modelica.Blocks.Interfaces.RealInput price "Price of kWh"; 
-          Real Money(start = 0.0, fixed = true) "Money spent";
+	  Modelica.Blocks.Interfaces.RealInput price "Price of kWh";
+	  
+	  parameter Modelica.SIunits.Area A_tot "Area of the building";
+      parameter Real ihg_el_ratio = 0.5 "Fraction of ihg power that is also electrical";
+	  Real COP "Nominal Coefficient of performance of the HVAC system";
+      Real Money(start = 0.0, fixed = true) "Money spent";
+      Real Pctrl "power from control system";
+      
+      // Thermal model of the building
 	  parameter Modelica.SIunits.Temperature Tstart "Initial temperatures of all the elements";
 	  parameter Integer N "Number of state variables";
 	  parameter Integer M "Number of inputs";
@@ -173,22 +276,27 @@ package ElectricNetwork
 	    B=B,
 	    C=C,
 	    x_start=Tstart*ones(size(A, 1))) "Linear model of a building";
+	  Modelica.Blocks.Interfaces.RealOutput Tmix(unit="K") "Averaged temperature of the air in the building";
+	    
+	  // Electric models
+	  ElectricNetwork.Battery batt(Vn=Vs, SOCstart=SOCstart, Ebatt=Ebatt);
+	  ElectricNetwork.Load bldg(Vn=Vs);
+	  parameter Modelica.SIunits.Power P_nominal = 200000 "Nominal power of the building";
+	  parameter Modelica.SIunits.Voltage Vs = 4800 "Voltage source";
+	  parameter Real cosPhi = 0.9 "Power factor of the building load";
+	  parameter Modelica.SIunits.Energy Ebatt = (P_nominal)*3*3600 "Battery storage capacity";
+      parameter Real SOCstart = 0.5;
+      ElectricNetwork.Pin p "Electric port for of the building";        
 	protected
 	  Real P_m2 "Power by HVAC per square meter";
 	  parameter Real A[N,N] = zeros(N,N) "State matrix A";
 	  parameter Real B[N,M] = zeros(N,M) "Input matrix B";
-	  parameter Real C[O,N] = [diagonal(ones(N)); zeros(1,N)] 
-	    "Output state matrix C";
-	public 
-	  Modelica.Blocks.Interfaces.RealOutput Tmix(unit="K") 
-	    "Averaged temperature of the air in the building";
+	  parameter Real C[O,N] = [diagonal(ones(N)); zeros(1,N)] "Output state matrix C";
 	equation
 	  // Computation of the electric power and energy
-          COP = 3+285.0*1.0/28.0 - 1.0/28.0*u[2];
-	  P_el = u[1]*ihg_el_ratio*A_tot + (P_hvac)*atan(P_hvac)/asin(1)/COP;
-	  P_m2 = P_hvac/A_tot;
-	  3600.0*der(E) = P_el/1000.0;
-	  der(Money) = price*P_el/1000.0/3600.0;
+      COP = 3+285.0*1.0/28.0 - 1.0/28.0*u[2];
+	  P_el = u[1]*ihg_el_ratio*A_tot + (P_hvac+Pctrl)*atan(P_hvac+Pctrl)/asin(1)/COP;
+	  P_m2 = (P_hvac+Pctrl)/A_tot;
  
 	  // Connect the inputs to building model
 	  linBuiModel.u[1] = u[1] + P_m2;
@@ -200,8 +308,43 @@ package ElectricNetwork
 	  // Connect the last of the outputs (averaged Tmix)
 	  connect(linBuiModel.y[O], Tmix);
 	  
+	  // Connect loads and battery to electric connector
+	  connect(p, bldg.p);
+	  connect(p, batt.p);
+	  
+	  // Associate powers to the electric loads and battery
+	  batt.P = P_batt;
+	  batt.Q = 0.0;
+	  
+	  bldg.P = -P_el;
+	  bldg.Q = -P_el*tan(acos(cosPhi));
+	  
 	end BaseBuilding;
-	
+
+	partial model BaseBuildingPV
+	  extends BaseBuilding;
+	  
+	  // Electric models
+	  ElectricNetwork.Load pv(Vn=Vs);
+	  parameter Real A_s = 0.5 "Ratio of PV oriented towards south";
+	  parameter Real A_n = 0.0 "Ratio of PV oriented towards north";
+	  parameter Real A_e = 0.2 "Ratio of PV oriented towards east";
+	  parameter Real A_w = 0.3 "Ratio of PV oriented towards west";
+	  parameter Modelica.SIunits.Power P_solar = 400000 "Nominal power for PV panels";
+      parameter Real A_pv = P_solar/(effPV*Qrad) "Area with PV panels";
+	  parameter Real effPV = 0.11 "Efficiency of PV panels";
+	  parameter Modelica.SIunits.Power Qrad = 1000 "Maximum solar radiation per square meter";
+	equation
+	  
+	  // Determine the power of the PVs
+	  pv.P = (u[4]*A_e + u[5]*A_n + u[6]*A_s + u[7]*A_w)*A_pv*effPV;
+	  pv.Q = 0.0;
+	  
+	  // Connect PV to the electric terminal of the building
+	  connect(p, pv.p);
+	  	
+	end BaseBuildingPV;
+
 	model RCBuildingModel2
 	  "RC model of a LBNL building 71 (Reduced Order Model - 2 state variables - RC type)"
 	  extends ElectricNetwork.BaseBuilding(
@@ -212,6 +355,16 @@ package ElectricNetwork
 	    C = [1.0, 0.0]);
 	end RCBuildingModel2;
 	
+	model RCBuildingModel2PV
+	  "RC model of a LBNL building 71 (Reduced Order Model - 2 state variables - RC type)"
+	  extends ElectricNetwork.BaseBuildingPV(
+	    N = 2, M = 7, O = 1, Tstart = 273.15+20, A_tot = 5016.76416,
+	    A = [-1.13701970e-05, 5.64289098e-06; 5.64289098e-07, -3.08438960e-06],
+	    B = [1.15740741e-05, 5.72730601e-06, 0.00000000e+00, 7.45634055e-09, 6.94015527e-08, 6.92836104e-08, 8.12800210e-09;
+	         0.00000000e+00, 0.00000000e+00, 2.52010050e-06, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00],
+	    C = [1.0, 0.0]);
+	end RCBuildingModel2PV;
+
 	model RCBuildingModel8
 	  "RC model of a LBNL building 71 (Reduced Order Model - 8 state variables, only Tmix)"
 	  extends ElectricNetwork.BaseBuilding(
@@ -222,37 +375,249 @@ package ElectricNetwork
 	    linBuiModel(x_start={-122607,3639.71,-17432.3,5786.65,-1898.14, -402.35,806.319,720.688}));
 	end RCBuildingModel8;
 	
-	optimization BuildingMngmtOpt_E( objective = E(finalTime), startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
-        extends ElectricNetwork.RCBuildingModel2(E(free=true, initialGuess = 0.0, min = 0.0),
-        Money(free=false, initialGuess = 0.0, min = 0.0));
+	model RCBuildingModel8PV
+	  "RC model of a LBNL building 71 (Reduced Order Model - 8 state variables, only Tmix)"
+	  extends ElectricNetwork.BaseBuildingPV(
+	    N = 8, M = 7, O = 1, Tstart = 273.15+20, A_tot = 5016.76416,
+	    A = [-0.0000076807, 0.0000264670, 0.0000401905, 0.0000425972, -0.0000368926, -0.0000100447, -0.0000106466, 0.0000032205; 0.0000248593, -0.0001468261, -0.0003049261, -0.0003460303, 0.0003125732, 0.0000886882, 0.0000966372, -0.0000293426; 0.0000292291, -0.0002127179, -0.0006396612, -0.0008354038, 0.0008968544, 0.0002766462, 0.0003118949, -0.0000953804; 0.0000285837, -0.0002361816, -0.0008107120, -0.0011412932, 0.0014112943, 0.0004617233, 0.0005343701, -0.0001645938; -0.0000333183, 0.0002859769, 0.0008331868, 0.0011686773, -0.0018071978, -0.0007494284, -0.0009560175, 0.0003010742; -0.0000086662, 0.0000857313, 0.0002330402, 0.0003373681, -0.0005564615, -0.0003281745, -0.0005979924, 0.0001989155; -0.0000090705, 0.0000893977, 0.0003082747, 0.0005141603, -0.0009375785, -0.0005308093, -0.0020813258, 0.0009388022; 0.0000026413, -0.0000248367, -0.0000924425, -0.0001590406, 0.0002953111, 0.0001539649, 0.0008752038, -0.0005212585],
+	    B = [-0.0023765430, -0.0009694831, -0.0012510260, -0.0000014213, -0.0000126499, -0.0000126499, -0.0000014213; 0.0054578740, 0.0004575349, 0.0024000689, 0.0000008343, 0.0000077609, 0.0000077609, 0.0000008343; 0.0079289763, -0.0002539306, -0.0008655943, -0.0000013476, -0.0000114039, -0.0000114039, -0.0000013476; 0.0079910917, -0.0002040695, -0.0018887522, -0.0000014388, -0.0000136813, -0.0000136813, -0.0000014388; -0.0068615127, -0.0014075129, -0.0004114607, -0.0000022905, -0.0000196376, -0.0000196376, -0.0000022905; -0.0017181585, 0.0003183989, -0.0007029392, 0.0000004319, 0.0000009974, 0.0000009974, 0.0000004319; -0.0019805508, -0.0000413197, -0.0000620118, 0.0000011606, 0.0000085077, 0.0000085077, 0.0000011606; 0.0005799727, 0.0001270611, -0.0000788008, 0.0000007811, 0.0000028771, 0.0000028771, 0.0000007811],
+	    C = [-0.0028553887, 0.0059798144, 0.0079801418, 0.0082138270, -0.0070165184, -0.0018835001, -0.0019819894, 0.0005989492],
+	    linBuiModel(x_start={-122607,3639.71,-17432.3,5786.65,-1898.14, -402.35,806.319,720.688}));
+	end RCBuildingModel8PV;
+	
+	model SingleBuildingElectric
+		extends ElectricNetwork.RCBuildingModel2;
+        ElectricNetwork.Source S(Vrms=Vs);
+        Real S_pow;
+    equation
+    	// No control
+    	Pctrl = 0.0;
+    	
+    	// Connect source grid to the building
+    	connect(S.p, p);
+    	
+    	// Compute energy and cost using voltage and currents
+    	S_pow = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2]);
+    	
+	    der(Money) = S_pow*price/1000.0/3600.0;
+	    der(E) = ElectricNetwork.smooth_max(0.0, S_pow)/1000.0/3600.0;
+	    
+	end SingleBuildingElectric;
+	
+	model SingleBuildingElectricCtrl
+		extends ElectricNetwork.RCBuildingModel2;
+        ElectricNetwork.Source S(Vrms=Vs);
+        Real S_pow;
+        ElectricNetwork.smooth_lim_PI pi_up(K = 2*6e3, Ti = 1e5, CS_max = 0, CS_min=-2.5e5, b = 1.0, CS_start = -2e5);
+    equation
+    
+    	// Connect source grid to the building
+    	connect(S.p, p);
+    	
+    	// Compute energy and cost using voltage and currents
+    	S_pow = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2]);
+    	
+	    der(Money) = S_pow*price/1000.0/3600.0;
+	    der(E) = ElectricNetwork.smooth_max(0.0, S_pow)/1000.0/3600.0;
+	    
+	    // Control the building Temperature with PI
+        Pctrl = pi_up.cs;
+        pi_up.sp = 273.15 + 23;
+        pi_up.pv = Tmix;	
+	    
+	end SingleBuildingElectricCtrl;
+	
+	model SingleBuildingElectricCtrlPV
+		extends ElectricNetwork.RCBuildingModel2PV;
+        ElectricNetwork.Source S(Vrms=Vs);
+        Real S_pow;
+        ElectricNetwork.smooth_lim_PI pi_up(K = 1e3, Ti = 1.0e3, CS_max = 0, CS_min=-2.5e5, b = 1.0);
+    equation
+    
+    	// Connect source grid to the building
+    	connect(S.p, p);
+    	
+    	// Compute energy and cost using voltage and currents
+    	S_pow = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2]);
+    	
+	    der(Money) = S_pow*price/1000.0/3600.0;
+	    der(E) = ElectricNetwork.smooth_max(0.0, S_pow)/1000.0/3600.0;
+	    
+	    // Control the building Temperature with PI
+        Pctrl = pi_up.cs;
+        pi_up.sp = 273.15 + 23;
+        pi_up.pv = Tmix;	
+	    
+	end SingleBuildingElectricCtrlPV;
+	
+	model SingleBuildingElectricPV
+		extends ElectricNetwork.RCBuildingModel2PV;
+        ElectricNetwork.Source S(Vrms=Vs);
+        Real S_pow;
+    equation
+    	// No control
+    	Pctrl = 0.0;
+    
+    	// Connect source grid to the building
+    	connect(S.p, p);
+    	
+    	// Compute energy and cost using voltage and currents
+    	S_pow = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2]);
+    	
+	    der(Money) = S_pow*price/1000.0/3600.0;
+	    der(E) = ElectricNetwork.smooth_max(0.0, S_pow)/1000.0/3600.0;
+	    
+	end SingleBuildingElectricPV;
+	
+	optimization BuildingMngmtOpt_E( objective = E(finalTime),
+								     objectiveIntegrand = 1e-12*P_hvac*P_hvac,
+									 startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
+        extends ElectricNetwork.SingleBuildingElectric(
+        E(free = true, initialGuess = 0.0, min = 0.0),
+        Money(free = false, initialGuess = 0.0, min = 0.0),
+        SOCstart(free = true, initialGuess=0.5, min=0.2, max=1.0));
         parameter Real Tmin = 273.15+20;
         parameter Real Tmax = 273.15+24;
+        parameter Real Pmax_charge = 0.5e5;
     constraint
-        Money(startTime)=0.0;
+        Money(startTime) = 0.0;
         Tmix <= Tmax;
         Tmin <= Tmix;
         P_hvac <= 0;
-        -4e5 <= P_hvac;
+        -2.5e5 <= P_hvac;
+        batt.SOC <= 1.0;
+        0.2 <= batt.SOC;
+        batt.P <= Pmax_charge;
+        -Pmax_charge <= batt.P;
+        batt.SOC(finalTime) = batt.SOC(startTime);
     end BuildingMngmtOpt_E;
-
-    optimization BuildingMngmtOpt_Money( objective = Money(finalTime), startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
-        extends ElectricNetwork.RCBuildingModel2(E(free=true, initialGuess = 0.0, min = 0.0),
-        Money(free=true, initialGuess = 0.0, min = 0.0));
+    
+    optimization BuildingMngmtOpt_E_PV( objective = E(finalTime),
+    									objectiveIntegrand = 1e-12*P_hvac*P_hvac,
+    									startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
+        extends ElectricNetwork.SingleBuildingElectricPV(
+        E(free = true, initialGuess = 0.0, min = 0.0),
+        Money(free = false, initialGuess = 0.0, min = 0.0),
+        SOCstart(free = true, initialGuess=0.5, min=0.2, max=1.0));
         parameter Real Tmin = 273.15+20;
         parameter Real Tmax = 273.15+24;
+        parameter Real Pmax_charge = 0.5e5;
     constraint
+        Money(startTime) = 0.0;
         Tmix <= Tmax;
         Tmin <= Tmix;
         P_hvac <= 0;
-        -4e5 <= P_hvac;
+        -2.5e5 <= P_hvac;
+        batt.SOC <= 1.0;
+        0.2 <= batt.SOC;
+        batt.P <= Pmax_charge;
+        -Pmax_charge <= batt.P;
+        
+        batt.SOC(finalTime) = batt.SOC(startTime);
+        
+        batt.SOC(24.0*3600.0*1.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*1.0);
+        
+        batt.SOC(24.0*3600.0*2.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*2.0);
+        
+        batt.SOC(24.0*3600.0*3.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*3.0);
+        
+        batt.SOC(24.0*3600.0*4.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*4.0);
+        
+        batt.SOC(24.0*3600.0*5.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*5.0);
+        
+    end BuildingMngmtOpt_E_PV;
+
+    optimization BuildingMngmtOpt_Money( objective = Money(finalTime), 
+    									 objectiveIntegrand = 1e-14*P_hvac*P_hvac,
+    									 startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
+        extends ElectricNetwork.SingleBuildingElectric(
+        E(free=true, initialGuess = 0.0, min = 0.0),
+        Money(free=true, initialGuess = 0.0, min = 0.0),
+        SOCstart(free = true, initialGuess=0.5, min=0.2, max=1.0));
+        parameter Real Tmin = 273.15+20;
+        parameter Real Tmax = 273.15+24;
+        parameter Real Pmax_charge = 0.5e5;
+    constraint
+        Money(startTime) = 0.0;
+        Tmix <= Tmax;
+        Tmin <= Tmix;
+        P_hvac <= 0;
+        -2.5e5 <= P_hvac;
+        batt.SOC <= 1.0;
+        0.2 <= batt.SOC;
+        batt.P <= Pmax_charge;
+        -Pmax_charge <= batt.P;
+        
+        batt.SOC(finalTime) = batt.SOC(startTime);
+        
+        batt.SOC(24.0*3600.0*1.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*1.0);
+        
+        batt.SOC(24.0*3600.0*2.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*2.0);
+        
+        batt.SOC(24.0*3600.0*3.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*3.0);
+        
+        batt.SOC(24.0*3600.0*4.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*4.0);
+        
+        batt.SOC(24.0*3600.0*5.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*5.0);
+        
     end BuildingMngmtOpt_Money;
+    
+    /* change cost of energy to be only the one consumed not produced */
+    optimization BuildingMngmtOpt_Money_PV( objective = Money(finalTime), 
+    									    objectiveIntegrand = 1e-14*P_hvac*P_hvac,
+    										startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
+        extends ElectricNetwork.SingleBuildingElectricPV(
+        E(free=true, initialGuess = 0.0, min = 0.0),
+        Money(free=true, initialGuess = 0.0, min = 0.0),
+        SOCstart(free = true, initialGuess=0.5, min=0.2, max=1.0));
+        parameter Real Tmin = 273.15+20;
+        parameter Real Tmax = 273.15+24;
+        parameter Real Pmax_charge = 0.5e5;
+    constraint
+        Money(startTime) = 0.0;
+        Tmix <= Tmax;
+        Tmin <= Tmix;
+        P_hvac <= 0;
+        -2.5e5 <= P_hvac;
+        batt.SOC <= 1.0;
+        0.2 <= batt.SOC;
+        batt.P <= Pmax_charge;
+        -Pmax_charge <= batt.P;
+        batt.SOC(finalTime) = batt.SOC(startTime);
+        
+        batt.SOC(24.0*3600.0*1.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*1.0);
+        
+        batt.SOC(24.0*3600.0*2.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*2.0);
+        
+        batt.SOC(24.0*3600.0*3.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*3.0);
+        
+        batt.SOC(24.0*3600.0*4.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*4.0);
+        
+        batt.SOC(24.0*3600.0*5.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*5.0);
+        
+    end BuildingMngmtOpt_Money_PV;
 
 	
 	model District
 		"Model of a district system, buildings + electrical network"
 		// Parameters
-                parameter Real Tsp_bui = 273.15 + 22;
-	parameter Real R1 = 1.5*1.2 "Line resistance 1";
+        parameter Real Tsp_bui = 273.15 + 22;
+	    parameter Real R1 = 1.5*1.2 "Line resistance 1";
         parameter Real R2 = 1.5*1.1 "Line resistance 2";
         parameter Real R3 = 1.5*1.05 "Line resistance 3";
         parameter Real ratio1 = 1 "power ratio PV panels 1";
@@ -286,14 +651,14 @@ package ElectricNetwork
 	    Modelica.Blocks.Interfaces.RealInput solGlobFac_S;
 	    Modelica.Blocks.Interfaces.RealInput solGlobFac_W;
 	    Modelica.Blocks.Interfaces.RealInput Tsp;
-            Modelica.Blocks.Interfaces.RealInput P_batt;
+        Modelica.Blocks.Interfaces.RealInput P_batt;
 	
 	  	// Models
 	  	ElectricNetwork.RCBuildingModel2 bui1(ihg_el_ratio=0.6) "Building 1";
 		ElectricNetwork.RCBuildingModel2 bui2(ihg_el_ratio=0.5) "Building 2";
 		ElectricNetwork.RCBuildingModel2 bui3(ihg_el_ratio=0.7) "Building 3";
 	        
-                ElectricNetwork.Battery batt(Vn=Vs, SOCstart=SOCstart, Ebatt=Ebatt);
+        ElectricNetwork.Battery batt(Vn=Vs, SOCstart=SOCstart, Ebatt=Ebatt);
 	
 		ElectricNetwork.Source S(Vrms=Vs);
 		
@@ -308,14 +673,14 @@ package ElectricNetwork
 		ElectricNetwork.Line line1(R=R1, X=R1/10);
 		ElectricNetwork.Line line2(R=R2, X=R2/12);
 		ElectricNetwork.Line line3(R=R3, X=R3/10);
-	        
-                // Controllers
-                ElectricNetwork.smooth_lim_PI pi1_up(K=50000, Ti=50, CS_max = 0, CS_min=-2e5);
-                //ElectricNetwork.smooth_lim_PI pi1_low(K=5000, Ti=30, CS_max = 2e5, CS_min = 0);
-                ElectricNetwork.smooth_lim_PI pi2_up(K=50000, Ti=10, CS_max = 0, CS_min=-2e5);
-                //ElectricNetwork.smooth_lim_PI pi2_low(K=5000, Ti=30, CS_max = 2e5, CS_min = 0);	
-                ElectricNetwork.smooth_lim_PI pi3_up(K=50000, Ti=10, CS_max = 0, CS_min=-2e5);
-                //ElectricNetwork.smooth_lim_PI pi3_low(K=5000, Ti=30, CS_max = 2e5, CS_min = 0);	
+	    
+		// Controllers
+		ElectricNetwork.smooth_lim_PI pi1_up(K=50000, Ti=50, CS_max = 0, CS_min=-2e5);
+		//ElectricNetwork.smooth_lim_PI pi1_low(K=5000, Ti=30, CS_max = 2e5, CS_min = 0);
+		ElectricNetwork.smooth_lim_PI pi2_up(K=50000, Ti=10, CS_max = 0, CS_min=-2e5);
+		//ElectricNetwork.smooth_lim_PI pi2_low(K=5000, Ti=30, CS_max = 2e5, CS_min = 0);	
+		ElectricNetwork.smooth_lim_PI pi3_up(K=50000, Ti=10, CS_max = 0, CS_min=-2e5);
+		//ElectricNetwork.smooth_lim_PI pi3_low(K=5000, Ti=30, CS_max = 2e5, CS_min = 0);	
 	equation
 	
 		// Energy and money to run the district
@@ -415,16 +780,6 @@ package ElectricNetwork
             bldg2.Vn*0.95 <= bldg2.Vrms;
             bldg3.Vn*0.95 <= bldg3.Vrms;    
         end OptimizationDistrict_E;
-	
-	model Battery
-		extends ElectricNetwork.Load;
-		parameter Modelica.SIunits.Energy Ebatt = 100 "Storage capacity for the battery";
-		parameter Real SOCstart = 0.5;
-		Real SOC(start = SOCstart, fixed = true, min = 0, max = 1);
-	equation
-		// Ideal battery model
-		Ebatt*der(SOC) = -P;
-	end Battery;
 	
 	model ACnetworkSimple
 		ElectricNetwork.Source S(Vrms=220);
