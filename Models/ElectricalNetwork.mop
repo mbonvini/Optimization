@@ -326,13 +326,13 @@ package ElectricNetwork
 	  
 	  // Electric models
 	  ElectricNetwork.Load pv(Vn=Vs);
-	  parameter Real A_s = 0.5 "Ratio of PV oriented towards south";
+	  parameter Real A_s = 0.9 "Ratio of PV oriented towards south";
 	  parameter Real A_n = 0.0 "Ratio of PV oriented towards north";
-	  parameter Real A_e = 0.2 "Ratio of PV oriented towards east";
-	  parameter Real A_w = 0.3 "Ratio of PV oriented towards west";
-	  parameter Modelica.SIunits.Power P_solar = 400000 "Nominal power for PV panels";
+	  parameter Real A_e = 0.1 "Ratio of PV oriented towards east";
+	  parameter Real A_w = 0.0 "Ratio of PV oriented towards west";
+	  parameter Modelica.SIunits.Power P_solar = 600000 "Nominal power for PV panels";
       parameter Real A_pv = P_solar/(effPV*Qrad) "Area with PV panels";
-	  parameter Real effPV = 0.11 "Efficiency of PV panels";
+	  parameter Real effPV = 0.2 "Efficiency of PV panels";
 	  parameter Modelica.SIunits.Power Qrad = 1000 "Maximum solar radiation per square meter";
 	equation
 	  
@@ -389,12 +389,15 @@ package ElectricNetwork
 		extends ElectricNetwork.RCBuildingModel2;
         ElectricNetwork.Source S(Vrms=Vs);
         Real S_pow;
+        parameter Real R = 2.0*1.2 "Line resistance";
+		ElectricNetwork.Line line(R=R, X=R/10);
     equation
     	// No control
     	Pctrl = 0.0;
     	
     	// Connect source grid to the building
-    	connect(S.p, p);
+    	connect(S.p, line.a);
+    	connect(line.b, p);
     	
     	// Compute energy and cost using voltage and currents
     	S_pow = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2]);
@@ -408,11 +411,14 @@ package ElectricNetwork
 		extends ElectricNetwork.RCBuildingModel2;
         ElectricNetwork.Source S(Vrms=Vs);
         Real S_pow;
+        parameter Real R = 2.0*1.2 "Line resistance";
+		ElectricNetwork.Line line(R=R, X=R/10);
         ElectricNetwork.smooth_lim_PI pi_up(K = 2*6e3, Ti = 1e5, CS_max = 0, CS_min=-2.5e5, b = 1.0, CS_start = -2e5);
     equation
     
     	// Connect source grid to the building
-    	connect(S.p, p);
+    	connect(S.p, line.a);
+    	connect(line.b, p);
     	
     	// Compute energy and cost using voltage and currents
     	S_pow = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2]);
@@ -431,11 +437,14 @@ package ElectricNetwork
 		extends ElectricNetwork.RCBuildingModel2PV;
         ElectricNetwork.Source S(Vrms=Vs);
         Real S_pow;
+        parameter Real R = 2.0*1.2 "Line resistance";
+		ElectricNetwork.Line line(R=R, X=R/10);
         ElectricNetwork.smooth_lim_PI pi_up(K = 1e3, Ti = 1.0e3, CS_max = 0, CS_min=-2.5e5, b = 1.0);
     equation
     
     	// Connect source grid to the building
-    	connect(S.p, p);
+    	connect(S.p, line.a);
+    	connect(line.b, p);
     	
     	// Compute energy and cost using voltage and currents
     	S_pow = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2]);
@@ -454,12 +463,15 @@ package ElectricNetwork
 		extends ElectricNetwork.RCBuildingModel2PV;
         ElectricNetwork.Source S(Vrms=Vs);
         Real S_pow;
+        parameter Real R = 2.0*1.2 "Line resistance";
+		ElectricNetwork.Line line(R=R, X=R/10);
     equation
     	// No control
     	Pctrl = 0.0;
     
     	// Connect source grid to the building
-    	connect(S.p, p);
+    	connect(S.p, line.a);
+    	connect(line.b, p);
     	
     	// Compute energy and cost using voltage and currents
     	S_pow = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2]);
@@ -489,7 +501,24 @@ package ElectricNetwork
         0.2 <= batt.SOC;
         batt.P <= Pmax_charge;
         -Pmax_charge <= batt.P;
+        
         batt.SOC(finalTime) = batt.SOC(startTime);
+        
+        batt.SOC(24.0*3600.0*1.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*1.0);
+        
+        batt.SOC(24.0*3600.0*2.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*2.0);
+        
+        batt.SOC(24.0*3600.0*3.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*3.0);
+        
+        batt.SOC(24.0*3600.0*4.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*4.0);
+        
+        batt.SOC(24.0*3600.0*5.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*5.0);
+        
     end BuildingMngmtOpt_E;
     
     optimization BuildingMngmtOpt_E_PV( objective = E(finalTime),

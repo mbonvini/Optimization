@@ -84,7 +84,7 @@ def getData(new_time, plot = False):
     
     return (Tamb_new, Tgnd_new, sRadS_new, sRadN_new, sRadW_new, sRadE_new, ihg_new, price)
 
-def run_simulation():
+def run_simulation(sim_model = 'ElectricNetwork.SingleBuildingElectric', P_hvac = 0.0, P_batt = 0.0):
     """
     This function runs a simulation that uses inputs data series
     """
@@ -92,14 +92,15 @@ def run_simulation():
     # Get the weather data for the building model
     time = np.linspace(0, 3600*24*6, 24*6*6, True)
     (Tamb, Tgnd, sRadS, sRadN, sRadW, sRadE, ihg, price) = getData(time, plot = False)
-    P_hvac = -1e5*np.ones(len(time))
+    P_hvac = P_hvac*np.ones(len(time))
+    P_batt = P_batt*np.ones(len(time))
     
     # Get current directory
     curr_dir = os.path.dirname(os.path.abspath(__file__));
     
     # Compile FMU
     path = os.path.join(curr_dir,"..","Models","ElectricalNetwork.mop")
-    fmu_model = compile_fmu('ElectricNetwork.RCBuildingModel2', path)
+    fmu_model = compile_fmu(sim_model, path)
 
     # Load the model instance into Python
     model = load_fmu(fmu_model)
@@ -114,14 +115,14 @@ def run_simulation():
     #  u[7] v_solGlobFac_W [W/m2]
     #  P_hvac
     #  Price
-    u = np.transpose(np.vstack((time, ihg, Tamb, Tgnd, sRadE, sRadN, sRadS, sRadW, P_hvac, price)))
+    u = np.transpose(np.vstack((time, ihg, Tamb, Tgnd, sRadE, sRadN, sRadS, sRadW, P_hvac, price, P_batt)))
     
     # Simulate
-    res = model.simulate(input=(['u[1]', 'u[2]', 'u[3]', 'u[4]', 'u[5]', 'u[6]', 'u[7]', 'P_hvac', 'price'], u), start_time = time[0], final_time = time[-1])
+    res = model.simulate(input=(['u[1]', 'u[2]', 'u[3]', 'u[4]', 'u[5]', 'u[6]', 'u[7]', 'P_hvac', 'price', 'P_batt'], u), start_time = time[0], final_time = time[-1])
     
     return res
 
-def run_optimization(sim_res, opt_problem = 'ElectricNetwork.BuildingMngmtOpt_E'):
+def run_optimization(sim_res, opt_problem = 'ElectricNetwork.BuildingMngmtOpt_E', use_battery = False):
     """
     This function runs an optimization problem
     """
@@ -132,6 +133,7 @@ def run_optimization(sim_res, opt_problem = 'ElectricNetwork.BuildingMngmtOpt_E'
     # Get the weather data for the building model
     time = np.linspace(0, 3600*24*6, 24*6*6, True)
     (Tamb, Tgnd, sRadS, sRadN, sRadW, sRadE, ihg, price) = getData(time, plot = False)
+    P_batt = 0.0*np.ones(len(time))
     
     # get current directory
     curr_dir = os.path.dirname(os.path.abspath(__file__));
@@ -166,12 +168,16 @@ def run_optimization(sim_res, opt_problem = 'ElectricNetwork.BuildingMngmtOpt_E'
    
     data_price = np.vstack([time, price])
     eliminated['price'] = data_price
+    
+    if not use_battery:
+    	data_Pbatt = np.vstack([time, P_batt])
+    	eliminated['P_batt'] = data_Pbatt
  
     measurement_data = MeasurementData(eliminated = eliminated)
     
     # define the optimization problem
     opts = op_model.optimize_options()
-    opts['n_e'] = 60*6
+    opts['n_e'] = 24*6
     opts['measurement_data'] = measurement_data
     opts['init_traj'] = sim_res.result_data
     
