@@ -39,7 +39,7 @@ def getData(new_time, plot = False):
     P_light_m2 = 16
     P_occ_m2 = 120/18.6
     ihg = (P_plug_m2+P_light_m2)*np.ones(len(time))
-    
+    	
     # Price signal
     t_price = np.array([0.0, 6.0, 8.0, 12.0, 13.0, 16.0, 18.0, 19.0, 22.0, 24.0])*3600.0
     price =   np.array((0.5, 0.5, 0.6, 0.8,  1.0,  1.1,  0.8,  0.7,  0.5,  0.5)*7)
@@ -84,7 +84,7 @@ def getData(new_time, plot = False):
     
     return (Tamb_new, Tgnd_new, sRadS_new, sRadN_new, sRadW_new, sRadE_new, ihg_new, price)
 
-def run_simulation(sim_model = 'ElectricNetwork.SingleBuildingElectric', P_hvac = 0.0, P_batt = 0.0):
+def run_simulation(sim_model = 'ElectricNetwork.SingleBuildingElectric', P_hvac = 0.0, P_batt = 0.0, fixpars = None):
     """
     This function runs a simulation that uses inputs data series
     """
@@ -105,6 +105,12 @@ def run_simulation(sim_model = 'ElectricNetwork.SingleBuildingElectric', P_hvac 
     # Load the model instance into Python
     model = load_fmu(fmu_model)
     
+    # Change parameters depending on the case
+    if fixpars:
+    	# Set the values for the parameters
+		model.reset()
+		model.set(fixpars.keys(),fixpars.values())
+    
     # Build input trajectory matrix for use in simulation
     #  u[1] v_IG_Offices [W/m2]
     #  u[2] v_Tamb
@@ -118,11 +124,11 @@ def run_simulation(sim_model = 'ElectricNetwork.SingleBuildingElectric', P_hvac 
     u = np.transpose(np.vstack((time, ihg, Tamb, Tgnd, sRadE, sRadN, sRadS, sRadW, P_hvac, price, P_batt)))
     
     # Simulate
-    res = model.simulate(input=(['u[1]', 'u[2]', 'u[3]', 'u[4]', 'u[5]', 'u[6]', 'u[7]', 'P_hvac', 'price', 'P_batt'], u), start_time = time[0], final_time = time[-1])
+    res = model.simulate(input=(['u[1]', 'u[2]', 'u[3]', 'u[4]', 'u[5]', 'u[6]', 'u[7]', 'P_hvac', 'price', 'P_batt'], u), start_time = time[0]-3600*24.0, final_time = time[-1])
     
     return res
 
-def run_optimization(sim_res, opt_problem = 'ElectricNetwork.BuildingMngmtOpt_E', use_battery = False):
+def run_optimization(sim_res, opt_problem = 'ElectricNetwork.BuildingMngmtOpt_E', use_battery = False, fixpars = None, n_e = 24):
     """
     This function runs an optimization problem
     """
@@ -141,6 +147,11 @@ def run_optimization(sim_res, opt_problem = 'ElectricNetwork.BuildingMngmtOpt_E'
     # compile FMU
     path = os.path.join(curr_dir,"..","Models","ElectricalNetwork.mop")
     op_model = transfer_optimization_problem(opt_problem, path, compiler_options={"enable_variable_scaling":True})
+    
+    # Change parameters depending on the case
+    if fixpars:
+    	# Set the values for the parameters
+		op_model.set(fixpars.keys(),fixpars.values())
     
     # Get the inputs that should be eliminated from the optimization variables
     eliminated = OrderedDict()
@@ -177,9 +188,10 @@ def run_optimization(sim_res, opt_problem = 'ElectricNetwork.BuildingMngmtOpt_E'
     
     # define the optimization problem
     opts = op_model.optimize_options()
-    opts['n_e'] = 24*6
+    opts['n_e'] = n_e
     opts['measurement_data'] = measurement_data
     opts['init_traj'] = sim_res.result_data
+    opts["IPOPT_options"]["max_iter"] = 10000
     
     # Get the results of the optimization
     res = op_model.optimize(options = opts)

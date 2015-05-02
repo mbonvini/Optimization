@@ -386,45 +386,43 @@ package ElectricNetwork
 	end RCBuildingModel8PV;
 	
 	model SingleBuildingElectric
-		extends ElectricNetwork.RCBuildingModel2;
+		extends ElectricNetwork.RCBuildingModel8;
         ElectricNetwork.Source S(Vrms=Vs);
         Real S_pow;
-        parameter Real R = 2.0*1.2 "Line resistance";
-		ElectricNetwork.Line line(R=R, X=R/10);
+        Real P_pow;
     equation
     	// No control
     	Pctrl = 0.0;
     	
     	// Connect source grid to the building
-    	connect(S.p, line.a);
-    	connect(line.b, p);
+    	connect(S.p, p);
     	
     	// Compute energy and cost using voltage and currents
     	S_pow = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2]);
+    	P_pow = -(bldg.P + batt.P);
     	
-	    der(Money) = S_pow*price/1000.0/3600.0;
-	    der(E) = ElectricNetwork.smooth_max(0.0, S_pow)/1000.0/3600.0;
+	    der(Money) = P_pow*price/1000.0/3600.0;
+	    der(E) = ElectricNetwork.smooth_max(0.0, P_pow)/1000.0/3600.0;
 	    
 	end SingleBuildingElectric;
 	
 	model SingleBuildingElectricCtrl
-		extends ElectricNetwork.RCBuildingModel2;
+		extends ElectricNetwork.RCBuildingModel8;
         ElectricNetwork.Source S(Vrms=Vs);
         Real S_pow;
-        parameter Real R = 2.0*1.2 "Line resistance";
-		ElectricNetwork.Line line(R=R, X=R/10);
+        Real P_pow;
         ElectricNetwork.smooth_lim_PI pi_up(K = 2*6e3, Ti = 1e5, CS_max = 0, CS_min=-2.5e5, b = 1.0, CS_start = -2e5);
     equation
     
     	// Connect source grid to the building
-    	connect(S.p, line.a);
-    	connect(line.b, p);
+    	connect(S.p, p);
     	
     	// Compute energy and cost using voltage and currents
     	S_pow = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2]);
+    	P_pow = -(bldg.P + batt.P);
     	
-	    der(Money) = S_pow*price/1000.0/3600.0;
-	    der(E) = ElectricNetwork.smooth_max(0.0, S_pow)/1000.0/3600.0;
+	    der(Money) = P_pow*price/1000.0/3600.0;
+	    der(E) = ElectricNetwork.smooth_max(0.0, P_pow)/1000.0/3600.0;
 	    
 	    // Control the building Temperature with PI
         Pctrl = pi_up.cs;
@@ -433,24 +431,91 @@ package ElectricNetwork
 	    
 	end SingleBuildingElectricCtrl;
 	
-	model SingleBuildingElectricCtrlPV
-		extends ElectricNetwork.RCBuildingModel2PV;
+	model SingleBuildingElectricCtrlRelay
+		extends ElectricNetwork.RCBuildingModel8;
         ElectricNetwork.Source S(Vrms=Vs);
         Real S_pow;
-        parameter Real R = 2.0*1.2 "Line resistance";
-		ElectricNetwork.Line line(R=R, X=R/10);
+        Real P_pow;
+        Real CoolPower = -2.1e5;
+        discrete Boolean cooling;
+    initial equation
+    	pre(cooling) = false;
+    algorithm
+    	// Control the building Temperature
+	    when Tmix >= 273.15 + 23.9 and pre(cooling) == false then
+	    	cooling := true;
+	    end when;
+	    
+	    when Tmix <= 273.15 + 20.1 and pre(cooling) == true then
+	    	cooling := false;
+	    end when;
+    equation
+    
+    	// Connect source grid to the building
+    	connect(S.p, p);
+    	
+    	// Compute energy and cost using voltage and currents
+    	S_pow = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2]);
+    	P_pow = -(bldg.P + batt.P);
+    	
+	    der(Money) = P_pow*price/1000.0/3600.0;
+	    der(E) = ElectricNetwork.smooth_max(0.0, P_pow)/1000.0/3600.0;
+	    
+        Pctrl + 360*der(Pctrl) = if (cooling) then CoolPower else 0.4*CoolPower;
+	    
+	end SingleBuildingElectricCtrlRelay;
+	
+	model SingleBuildingElectricCtrlRelayPV
+		extends ElectricNetwork.RCBuildingModel8PV;
+        ElectricNetwork.Source S(Vrms=Vs);
+        Real S_pow;
+        Real P_pow;
+        Real CoolPower = -2.1e5;
+        discrete Boolean cooling;
+    initial equation
+    	pre(cooling) = false;
+    algorithm
+    	// Control the building Temperature
+	    when Tmix >= 273.15 + 23.9 and pre(cooling) == false then
+	    	cooling := true;
+	    end when;
+	    
+	    when Tmix <= 273.15 + 20.1 and pre(cooling) == true then
+	    	cooling := false;
+	    end when;
+    equation
+    
+    	// Connect source grid to the building
+    	connect(S.p, p);
+    	
+    	// Compute energy and cost using voltage and currents
+    	S_pow = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2]);
+    	P_pow = -(pv.P + bldg.P + batt.P);
+    	
+	    der(Money) = P_pow*price/1000.0/3600.0;
+	    der(E) = ElectricNetwork.smooth_max(0.0, P_pow)/1000.0/3600.0;
+	    
+        Pctrl + 360*der(Pctrl) = if (cooling) then CoolPower else 0.4*CoolPower;
+	    
+	end SingleBuildingElectricCtrlRelayPV;
+	
+	model SingleBuildingElectricCtrlPV
+		extends ElectricNetwork.RCBuildingModel8PV;
+        ElectricNetwork.Source S(Vrms=Vs);
+        Real S_pow;
+        Real P_pow;
         ElectricNetwork.smooth_lim_PI pi_up(K = 1e3, Ti = 1.0e3, CS_max = 0, CS_min=-2.5e5, b = 1.0);
     equation
     
     	// Connect source grid to the building
-    	connect(S.p, line.a);
-    	connect(line.b, p);
+    	connect(S.p, p);
     	
     	// Compute energy and cost using voltage and currents
     	S_pow = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2]);
+    	P_pow = -(pv.P + bldg.P + batt.P);
     	
-	    der(Money) = S_pow*price/1000.0/3600.0;
-	    der(E) = ElectricNetwork.smooth_max(0.0, S_pow)/1000.0/3600.0;
+	    der(Money) = P_pow*price/1000.0/3600.0;
+	    der(E) = ElectricNetwork.smooth_max(0.0, P_pow)/1000.0/3600.0;
 	    
 	    // Control the building Temperature with PI
         Pctrl = pi_up.cs;
@@ -460,34 +525,33 @@ package ElectricNetwork
 	end SingleBuildingElectricCtrlPV;
 	
 	model SingleBuildingElectricPV
-		extends ElectricNetwork.RCBuildingModel2PV;
+		extends ElectricNetwork.RCBuildingModel8PV;
         ElectricNetwork.Source S(Vrms=Vs);
         Real S_pow;
-        parameter Real R = 2.0*1.2 "Line resistance";
-		ElectricNetwork.Line line(R=R, X=R/10);
+        Real P_pow;
     equation
     	// No control
     	Pctrl = 0.0;
     
     	// Connect source grid to the building
-    	connect(S.p, line.a);
-    	connect(line.b, p);
+    	connect(S.p, p);
     	
     	// Compute energy and cost using voltage and currents
     	S_pow = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2]);
+    	P_pow = -(pv.P + bldg.P + batt.P);
     	
-	    der(Money) = S_pow*price/1000.0/3600.0;
-	    der(E) = ElectricNetwork.smooth_max(0.0, S_pow)/1000.0/3600.0;
+	    der(Money) = P_pow*price/1000.0/3600.0;
+	    der(E) = ElectricNetwork.smooth_max(0.0, P_pow)/1000.0/3600.0;
 	    
 	end SingleBuildingElectricPV;
 	
 	optimization BuildingMngmtOpt_E( objective = E(finalTime),
-								     objectiveIntegrand = 1e-12*P_hvac*P_hvac,
+								     objectiveIntegrand = 0*1e-12*P_hvac*P_hvac,
 									 startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
         extends ElectricNetwork.SingleBuildingElectric(
         E(free = true, initialGuess = 0.0, min = 0.0),
         Money(free = false, initialGuess = 0.0, min = 0.0),
-        SOCstart(free = true, initialGuess=0.5, min=0.2, max=1.0));
+        SOCstart(free = false, initialGuess=0.5, min=0.2, max=1.0));
         parameter Real Tmin = 273.15+20;
         parameter Real Tmax = 273.15+24;
         parameter Real Pmax_charge = 0.5e5;
@@ -504,25 +568,10 @@ package ElectricNetwork
         
         batt.SOC(finalTime) = batt.SOC(startTime);
         
-        batt.SOC(24.0*3600.0*1.0) <= 1.1*batt.SOC(startTime);
-        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*1.0);
-        
-        batt.SOC(24.0*3600.0*2.0) <= 1.1*batt.SOC(startTime);
-        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*2.0);
-        
-        batt.SOC(24.0*3600.0*3.0) <= 1.1*batt.SOC(startTime);
-        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*3.0);
-        
-        batt.SOC(24.0*3600.0*4.0) <= 1.1*batt.SOC(startTime);
-        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*4.0);
-        
-        batt.SOC(24.0*3600.0*5.0) <= 1.1*batt.SOC(startTime);
-        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*5.0);
-        
     end BuildingMngmtOpt_E;
     
     optimization BuildingMngmtOpt_E_PV( objective = E(finalTime),
-    									objectiveIntegrand = 1e-12*P_hvac*P_hvac,
+    									objectiveIntegrand = 0*0.1e-12*P_hvac*P_hvac,
     									startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
         extends ElectricNetwork.SingleBuildingElectricPV(
         E(free = true, initialGuess = 0.0, min = 0.0),
@@ -544,7 +593,13 @@ package ElectricNetwork
         
         batt.SOC(finalTime) = batt.SOC(startTime);
         
-        batt.SOC(24.0*3600.0*1.0) <= 1.1*batt.SOC(startTime);
+    end BuildingMngmtOpt_E_PV;
+
+	optimization BuildingMngmtOpt_E_PV_batt_constraints
+		extends BuildingMngmtOpt_E_PV;
+	constraint
+		
+		batt.SOC(24.0*3600.0*1.0) <= 1.1*batt.SOC(startTime);
         0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*1.0);
         
         batt.SOC(24.0*3600.0*2.0) <= 1.1*batt.SOC(startTime);
@@ -559,10 +614,10 @@ package ElectricNetwork
         batt.SOC(24.0*3600.0*5.0) <= 1.1*batt.SOC(startTime);
         0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*5.0);
         
-    end BuildingMngmtOpt_E_PV;
+	end BuildingMngmtOpt_E_PV_batt_constraints;
 
     optimization BuildingMngmtOpt_Money( objective = Money(finalTime), 
-    									 objectiveIntegrand = 1e-14*P_hvac*P_hvac,
+    									 objectiveIntegrand = 0*1e-14*P_hvac*P_hvac,
     									 startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
         extends ElectricNetwork.SingleBuildingElectric(
         E(free=true, initialGuess = 0.0, min = 0.0),
@@ -584,26 +639,11 @@ package ElectricNetwork
         
         batt.SOC(finalTime) = batt.SOC(startTime);
         
-        batt.SOC(24.0*3600.0*1.0) <= 1.1*batt.SOC(startTime);
-        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*1.0);
-        
-        batt.SOC(24.0*3600.0*2.0) <= 1.1*batt.SOC(startTime);
-        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*2.0);
-        
-        batt.SOC(24.0*3600.0*3.0) <= 1.1*batt.SOC(startTime);
-        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*3.0);
-        
-        batt.SOC(24.0*3600.0*4.0) <= 1.1*batt.SOC(startTime);
-        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*4.0);
-        
-        batt.SOC(24.0*3600.0*5.0) <= 1.1*batt.SOC(startTime);
-        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*5.0);
-        
     end BuildingMngmtOpt_Money;
     
     /* change cost of energy to be only the one consumed not produced */
     optimization BuildingMngmtOpt_Money_PV( objective = Money(finalTime), 
-    									    objectiveIntegrand = 1e-14*P_hvac*P_hvac,
+    									    objectiveIntegrand = 0*1e-14*P_hvac*P_hvac,
     										startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
         extends ElectricNetwork.SingleBuildingElectricPV(
         E(free=true, initialGuess = 0.0, min = 0.0),
@@ -624,7 +664,13 @@ package ElectricNetwork
         -Pmax_charge <= batt.P;
         batt.SOC(finalTime) = batt.SOC(startTime);
         
-        batt.SOC(24.0*3600.0*1.0) <= 1.1*batt.SOC(startTime);
+    end BuildingMngmtOpt_Money_PV;
+
+	optimization BuildingMngmtOpt_Money_PV_batt_constraints
+		extends BuildingMngmtOpt_Money_PV;
+	constraint
+	
+		batt.SOC(24.0*3600.0*1.0) <= 1.1*batt.SOC(startTime);
         0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*1.0);
         
         batt.SOC(24.0*3600.0*2.0) <= 1.1*batt.SOC(startTime);
@@ -639,8 +685,7 @@ package ElectricNetwork
         batt.SOC(24.0*3600.0*5.0) <= 1.1*batt.SOC(startTime);
         0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*5.0);
         
-    end BuildingMngmtOpt_Money_PV;
-
+	end BuildingMngmtOpt_Money_PV_batt_constraints;
 	
 	model District
 		"Model of a district system, buildings + electrical network"
