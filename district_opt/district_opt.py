@@ -39,19 +39,8 @@ def getData(new_time, plot = False):
     P_plug_m2 = 25
     P_light_m2 = 16
     P_occ_m2 = 120/18.6
-    ihg = (P_plug_m2+P_light_m2)
-    
-    # variations to the ihg for each building
-    t_ihg = np.array([0.0, 6.0, 8.0, 10, 12.0, 13.0, 16.0, 18.0, 19.0, 22.0, 24.0])*3600.0
-    time_ihg = np.hstack((t_ihg, t_ihg + 24*3600, t_ihg + 2*24*3600, t_ihg + 3*24*3600, t_ihg + 4*24*3600,
-    t_ihg + 5*24*3600, t_ihg + 6*24*3600))
-    ihg_1 = ihg*np.array((0.4, 0.5, 0.6, 1.0, 1.0, 0.8, 1.0, 0.7, 0.6, 0.2, 0.4)*7) + 0.*np.random.rand(len(time_ihg))
-    ihg_2 = ihg*np.array((0.4, 0.7, 0.6, 0.5, 1.0, 0.8, 0.6, 0.7, 0.6, 0.2, 0.4)*7) + 0.*np.random.rand(len(time_ihg))
-    ihg_3 = ihg*np.array((0.2, 0.5, 1.0, 1.0, 0.9, 0.8, 0.5, 0.7, 0.6, 0.2, 0.2)*7) + 0.*np.random.rand(len(time_ihg))
-    ihg_1 = np.interp(new_time, time_ihg, ihg_1)
-    ihg_2 = np.interp(new_time, time_ihg, ihg_2)
-    ihg_3 = np.interp(new_time, time_ihg, ihg_3)
- 
+    ihg = (P_plug_m2+P_light_m2)*np.ones(len(time))
+    	
     # Price signal
     t_price = np.array([0.0, 6.0, 8.0, 12.0, 13.0, 16.0, 18.0, 19.0, 22.0, 24.0])*3600.0
     price =   np.array((0.5, 0.5, 0.6, 0.8,  1.0,  1.1,  0.8,  0.7,  0.5,  0.5)*7)
@@ -67,6 +56,7 @@ def getData(new_time, plot = False):
     sRadN_new = np.interp(new_time, time, sRadN)
     sRadE_new = np.interp(new_time, time, sRadE)
     sRadW_new = np.interp(new_time, time, sRadW)
+    ihg_new = np.interp(new_time, time, ihg)
     
     # Plot if requested 
     if plot:
@@ -93,16 +83,16 @@ def getData(new_time, plot = False):
         
         plt.show()
     
-    return (Tamb_new, Tgnd_new, sRadS_new, sRadN_new, sRadW_new, sRadE_new, ihg_1, ihg_2, ihg_3, price)
+    return (Tamb_new, Tgnd_new, sRadS_new, sRadN_new, sRadW_new, sRadE_new, ihg_new, ihg_new, ihg_new, price)
 
 def plot_sim_res(res):
     """
     This function plots the results of a simulation
     """
     time = res["time"]
-    Tbui_1 = res["bui1.Tmix"]
-    Tbui_2 = res["bui2.Tmix"]
-    Tbui_3 = res["bui3.Tmix"]
+    Tbui_1 = res["buiA.Tmix"]
+    Tbui_2 = res["buiA.Tmix"]
+    Tbui_3 = res["buiA.Tmix"]
     PV_1 = res["pv1.P"]
     PV_2 = res["pv2.P"]
     PV_3 = res["pv3.P"]
@@ -164,16 +154,44 @@ def plot_sim_res(res):
     
     return
     
-def run_simulation():
+def run_simulation(stop_time = 3600*24, t_A = None, t_B = None, t_C = None, P_hvac_A = None, P_hvac_B = None, P_hvac_C = None, P_batt_A = None, P_batt_B = None, P_batt_C = None):
     """
     This function runs a simulation that uses inputs data series
     """
     
     # Get the weather data and other inputs for the building model
-    time = np.linspace(0, 3600*24, 24*6*6, True)
+    time = np.linspace(0, stop_time, 36*stop_time/3600, True)
     (Tamb, Tgnd, sRadS, sRadN, sRadW, sRadE, ihg_1, ihg_2, ihg_3, price) = getData(time, plot = False)
-    Tsp = (273.15+22)*np.ones(len(time))
-    P_batt = 0*np.ones(len(time))
+    if P_hvac_A == None:
+    	P_hvac_A = -1e5*np.ones(len(time))
+    else:
+    	P_hvac_A = np.interp(time, t_A, P_hvac_A)
+    	
+    if P_hvac_B == None:
+    	P_hvac_B = -1e5*np.ones(len(time))
+    else:
+    	P_hvac_B = np.interp(time, t_B, P_hvac_B)
+    	
+    if P_hvac_C == None:
+    	P_hvac_C = -1e5*np.ones(len(time))
+    else:
+    	P_hvac_C = np.interp(time, t_C, P_hvac_C)
+    	
+    if P_batt_A == None:
+    	P_batt_A = 0*np.ones(len(time))
+    else:
+    	P_batt_A = np.interp(time, t_A, P_batt_A)
+    	
+    if P_batt_B == None:
+    	P_batt_B = 0*np.ones(len(time))
+    else:
+    	P_batt_B = np.interp(time, t_B, P_batt_B)
+    	
+    if P_batt_C == None:
+    	P_batt_C = 0*np.ones(len(time))
+    else:
+    	P_batt_C = np.interp(time, t_C, P_batt_C)
+    	
  
     # Get current directory
     curr_dir = os.path.dirname(os.path.abspath(__file__));
@@ -199,17 +217,17 @@ def run_simulation():
     # solGlobFac_N;
     # solGlobFac_S;
     # solGlobFac_W;
-    u = np.transpose(np.vstack((time, ihg_1, ihg_2, ihg_3, Tsp, P_batt, 
-                                Tamb, Tgnd, sRadE, sRadN, sRadS, sRadW, price)))
+    u = np.transpose(np.vstack((time, ihg_1, ihg_2, ihg_3, Tamb, Tgnd, P_hvac_A, P_hvac_B, P_hvac_C,
+    							P_batt_A, P_batt_B, P_batt_C, sRadE, sRadN, sRadS, sRadW, price)))
     
     # Simulate
-    res = model.simulate(input=(['ihg_1', 'ihg_2', 'ihg_3', 'Tsp', 'P_batt',
-                                 'Tamb', 'Tgnd', 'solGlobFac_E', 'solGlobFac_N', 'solGlobFac_S', 'solGlobFac_W', 'price'], u), 
+    res = model.simulate(input=(['ihg_1', 'ihg_2', 'ihg_3', 'Tamb', 'Tgnd', 'P_hvac_A', 'P_hvac_B', 'P_hvac_C',
+    							 'P_batt_A', 'P_batt_B', 'P_batt_C', 'solGlobFac_E', 'solGlobFac_N', 'solGlobFac_S', 'solGlobFac_W', 'price'], u), 
                          start_time = time[0], final_time = time[-1])
     
     return res
 
-def run_optimization(sim_res, opt_problem = 'ElectricNetwork.OptimizationDistrict_E'):
+def run_optimization(sim_res, stop_time = 3600*24*6, opt_problem = 'ElectricNetwork.OptimizationDistrict_E', n_e = 12):
     """
     This function runs an optimization problem
     """
@@ -218,10 +236,9 @@ def run_optimization(sim_res, opt_problem = 'ElectricNetwork.OptimizationDistric
     from collections import OrderedDict
     
     # Get the weather data and other inputs for the building model
-    time = np.linspace(0, 3600*24, 24*6*6, True)
+    time = np.linspace(0, stop_time, 36*stop_time/3600, True)
     (Tamb, Tgnd, sRadS, sRadN, sRadW, sRadE, ihg_1, ihg_2, ihg_3, price) = getData(time, plot = False)
-    Tsp = (273.15 + 22)*np.ones(len(time)) 
- 
+    
     # get current directory
     curr_dir = os.path.dirname(os.path.abspath(__file__));
     
@@ -232,9 +249,6 @@ def run_optimization(sim_res, opt_problem = 'ElectricNetwork.OptimizationDistric
     # Get the inputs that should be eliminated from the optimization variables
     eliminated = OrderedDict()
     
-    data_Tsp = np.vstack([time, Tsp])
-    eliminated['Tsp'] = data_Tsp
- 
     data_ihg_1 = np.vstack([time, ihg_1])
     eliminated['ihg_1'] = data_ihg_1
     
@@ -269,14 +283,15 @@ def run_optimization(sim_res, opt_problem = 'ElectricNetwork.OptimizationDistric
     
     # define the optimization problem
     opts = op_model.optimize_options()
-    opts['n_e'] = 60*2
+    opts['n_e'] = n_e
     opts['measurement_data'] = measurement_data
     opts['init_traj'] = sim_res.result_data
+    opts["IPOPT_options"]["max_iter"] = 10000
     
     # Get the results of the optimization
     res = op_model.optimize(options = opts)
     
-    plot_sim_res(res)
+    #plot_sim_res(res)
     
     return res
 
