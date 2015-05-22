@@ -1,0 +1,163 @@
+==========================================================================================
+Ne = 24
+
+NOTE: Other linear solvers might be more efficient (see Ipopt documentation).
+
+Number of nonzeros in equality constraint Jacobian...:    69321
+Number of nonzeros in inequality constraint Jacobian.:     1971
+Number of nonzeros in Lagrangian Hessian.............:     3942
+
+Total number of variables............................:    14094
+                     variables with only lower bounds:      192
+                variables with lower and upper bounds:      291
+                     variables with only upper bounds:        0
+Total number of equality constraints.................:    13663
+Total number of inequality constraints...............:     1971
+        inequality constraints with only lower bounds:        0
+   inequality constraints with lower and upper bounds:        0
+        inequality constraints with only upper bounds:     1971
+
+Number of Iterations....: 136
+
+                                   (scaled)                 (unscaled)
+Objective...............:   2.6575521715752825e+03    2.6575521715752825e+03
+Dual infeasibility......:   4.1380637805232823e-10    4.1380637805232823e-10
+Constraint violation....:   9.9999407159451846e-09    1.0089133866131306e-06
+Complementarity.........:   9.4392971726907857e-10    9.4392971726907857e-10
+Overall NLP error.......:   9.9999407159451846e-09    1.0089133866131306e-06
+
+
+Number of objective function evaluations             = 186
+Number of objective gradient evaluations             = 137
+Number of equality constraint evaluations            = 186
+Number of inequality constraint evaluations          = 186
+Number of equality constraint Jacobian evaluations   = 137
+Number of inequality constraint Jacobian evaluations = 137
+Number of Lagrangian Hessian evaluations             = 136
+Total CPU secs in IPOPT (w/o function evaluations)   =     14.550
+Total CPU secs in NLP function evaluations           =      0.310
+
+EXIT: Optimal Solution Found.
+time spent in eval_f: 0.075695 s. (186 calls, 0.406962 ms. average)
+time spent in eval_grad_f: 0.07067 s. (138 calls, 0.512101 ms. average)
+time spent in eval_g: 0.085202 s. (186 calls, 0.458075 ms. average)
+time spent in eval_jac_g: 0.131055 s. (139 calls, 0.942842 ms. average)
+time spent in eval_h: 0.206604 s. (137 calls, 1.50806 ms. average)
+time spent in main loop: 15.2069 s.
+time spent in callback function: 0 s.
+time spent in callback preparation: 0.016541 s.
+
+Total time: 23.88 seconds
+Initialization time: 8.65 seconds
+Solution time: 15.21 seconds
+Post-processing time: 0.02 seconds
+
+==========================================================================================
+Ne = 48
+
+This is Ipopt version 3.11.9, running with linear solver mumps.
+NOTE: Other linear solvers might be more efficient (see Ipopt documentation).
+
+Number of nonzeros in equality constraint Jacobian...:   137889
+Number of nonzeros in inequality constraint Jacobian.:     3915
+Number of nonzeros in Lagrangian Hessian.............:     7830
+
+Total number of variables............................:    28038
+                     variables with only lower bounds:      384
+                variables with lower and upper bounds:      579
+                     variables with only upper bounds:        0
+Total number of equality constraints.................:    27175
+Total number of inequality constraints...............:     3915
+        inequality constraints with only lower bounds:        0
+   inequality constraints with lower and upper bounds:        0
+        inequality constraints with only upper bounds:     3915
+
+
+Number of Iterations....: 253
+
+                                   (scaled)                 (unscaled)
+Objective...............:   2.8976658874115965e+03    2.8976658874115965e+03
+Dual infeasibility......:   7.4106668024320754e-10    7.4106668024320754e-10
+Constraint violation....:   9.9995605700046864e-09    1.2543750926852226e-08
+Complementarity.........:   2.5059132545564606e-09    2.5059132545564606e-09
+Overall NLP error.......:   9.9995605700046864e-09    1.2543750926852226e-08
+
+
+Number of objective function evaluations             = 1155
+Number of objective gradient evaluations             = 242
+Number of equality constraint evaluations            = 1155
+Number of inequality constraint evaluations          = 1155
+Number of equality constraint Jacobian evaluations   = 256
+Number of inequality constraint Jacobian evaluations = 256
+Number of Lagrangian Hessian evaluations             = 253
+Total CPU secs in IPOPT (w/o function evaluations)   =     45.230
+Total CPU secs in NLP function evaluations           =      1.940
+
+EXIT: Optimal Solution Found.
+time spent in eval_f: 0.910599 s. (1155 calls, 0.788397 ms. average)
+time spent in eval_grad_f: 0.23176 s. (243 calls, 0.953745 ms. average)
+time spent in eval_g: 0.982434 s. (1155 calls, 0.850592 ms. average)
+time spent in eval_jac_g: 0.478236 s. (258 calls, 1.85363 ms. average)
+time spent in eval_h: 0.744237 s. (252 calls, 2.95332 ms. average)
+time spent in main loop: 52.4572 s.
+time spent in callback function: 0 s.
+time spent in callback preparation: 0.058607 s.
+
+Total time: 56.72 seconds
+Initialization time: 4.46 seconds
+Solution time: 52.22 seconds
+Post-processing time: 0.04 seconds
+
+==========================================================================================
+Ne = 96
+
+NOTE: Other linear solvers might be more efficient (see Ipopt documentation).
+
+Number of nonzeros in equality constraint Jacobian...:   275025
+Number of nonzeros in inequality constraint Jacobian.:     7803
+Number of nonzeros in Lagrangian Hessian.............:    15606
+
+Total number of variables............................:    55926
+                     variables with only lower bounds:      768
+                variables with lower and upper bounds:     1155
+                     variables with only upper bounds:        0
+Total number of equality constraints.................:    54199
+Total number of inequality constraints...............:     7803
+        inequality constraints with only lower bounds:        0
+   inequality constraints with lower and upper bounds:        0
+        inequality constraints with only upper bounds:     7803
+
+Number of Iterations....: 443
+
+                                   (scaled)                 (unscaled)
+Objective...............:   2.8752077071999765e+03    2.8752077071999765e+03
+Dual infeasibility......:   2.4390445219069079e-10    2.4390445219069079e-10
+Constraint violation....:   8.0000003006965403e-08    3.6027631722390652e-06
+Complementarity.........:   9.0909172670366372e-10    9.0909172670366372e-10
+Overall NLP error.......:   8.0000003006965403e-08    3.6027631722390652e-06
+
+
+Number of objective function evaluations             = 1200
+Number of objective gradient evaluations             = 343
+Number of equality constraint evaluations            = 1200
+Number of inequality constraint evaluations          = 1200
+Number of equality constraint Jacobian evaluations   = 449
+Number of inequality constraint Jacobian evaluations = 449
+Number of Lagrangian Hessian evaluations             = 443
+Total CPU secs in IPOPT (w/o function evaluations)   =   1139.330
+Total CPU secs in NLP function evaluations           =     36.100
+
+EXIT: Solved To Acceptable Level.
+time spent in eval_f: 1.92591 s. (1200 calls, 1.60493 ms. average)
+time spent in eval_grad_f: 0.64672 s. (344 calls, 1.88 ms. average)
+time spent in eval_g: 2.07879 s. (1200 calls, 1.73232 ms. average)
+time spent in eval_jac_g: 1.67808 s. (451 calls, 3.72081 ms. average)
+time spent in eval_h: 2.80893 s. (439 calls, 6.39847 ms. average)
+time spent in main loop: 1155.37 s.
+time spent in callback function: 0 s.
+time spent in callback preparation: 0.17466 s.
+
+Total time: 1164.74 seconds
+Initialization time: 9.30 seconds
+Solution time: 1155.38 seconds
+Post-processing time: 0.06 seconds  
