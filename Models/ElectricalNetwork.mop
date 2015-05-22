@@ -417,12 +417,14 @@ package ElectricNetwork
 	end RCBuildingModel8PV;
 	
 	model SingleBuildingElectric
+		"Model of a single building connected to a voltage source"
 		extends ElectricNetwork.RCBuildingModel8;
-        ElectricNetwork.Source S(Vrms=Vs);
-        Real S_pow;
-        Real P_pow;
+        ElectricNetwork.Source S(Vrms=Vs) "Voltage source";
+        Real S_pow "Apparent power consumption";
+        Real P_pow "Active power consumption";
     equation
-    	// No control
+    
+    	// No control action
     	Pctrl = 0.0;
     	
     	// Connect source grid to the building
@@ -438,11 +440,14 @@ package ElectricNetwork
 	end SingleBuildingElectric;
 	
 	model SingleBuildingElectricCtrl
+		"Model of a single building connected to a voltage source with PI controller
+		for thermal confort"
 		extends ElectricNetwork.RCBuildingModel8;
-        ElectricNetwork.Source S(Vrms=Vs);
-        Real S_pow;
-        Real P_pow;
-        ElectricNetwork.smooth_lim_PI pi_up(K = 2*6e3, Ti = 1e5, CS_max = 0, CS_min=-2.5e5, b = 1.0, CS_start = -2e5);
+        ElectricNetwork.Source S(Vrms=Vs) "Voltage source";
+        Real S_pow "Apparent power consumption";
+        Real P_pow "Active power consumption";
+        ElectricNetwork.smooth_lim_PI pi_up(K = 2*6e3, Ti = 1e5, CS_max = 0, CS_min=-2.5e5, b = 1.0, CS_start = -2e5)
+        "PI controller that prevent the temperature to be higher than the set point";
     equation
     
     	// Connect source grid to the building
@@ -463,16 +468,21 @@ package ElectricNetwork
 	end SingleBuildingElectricCtrl;
 	
 	model SingleBuildingElectricCtrlRelay
+		"Model of a single building connected to a voltage source with relay based controller
+		for thermal confort"
 		extends ElectricNetwork.RCBuildingModel8;
-        ElectricNetwork.Source S(Vrms=Vs);
-        Real S_pow;
-        Real P_pow;
-        Real CoolPower = -2.1e5;
-        discrete Boolean cooling;
+        ElectricNetwork.Source S(Vrms=Vs) "Voltage source";
+        Real S_pow "Apparent power consumption";
+        Real P_pow "Active power consumption";
+        Real CoolPower = -2.1e5 "Maximum cooling power (cooling = ON)";
+        Real CoolPowerMin = 0.4*CoolPower "Minimum cooling power (cooling = OFF)";
+        discrete Boolean cooling "Variable describing the cooling mode";
+        parameter Real Tcool = 360 "Time constant of cooling system";
     initial equation
+    	// Initial state of the cooling mode
     	pre(cooling) = false;
     algorithm
-    	// Control the building Temperature
+    	// Control rules for controlling the building temperature
 	    when Tmix >= 273.15 + 23.9 and pre(cooling) == false then
 	    	cooling := true;
 	    end when;
@@ -492,7 +502,8 @@ package ElectricNetwork
 	    der(Money) = P_pow*price/1000.0/3600.0;
 	    der(E) = ElectricNetwork.smooth_max(0.0, P_pow)/1000.0/3600.0;
 	    
-        Pctrl + 360*der(Pctrl) = if (cooling) then CoolPower else 0.4*CoolPower;
+	    // Dynamic of the cooling system
+        Pctrl + Tcool*der(Pctrl) = if (cooling) then CoolPower else CoolPowerMin;
 	    
 	end SingleBuildingElectricCtrlRelay;
 	
