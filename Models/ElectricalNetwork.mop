@@ -1,7 +1,8 @@
 package ElectricNetwork
-	"This package contains simple models for optimization problems with electrical networks"
+	"This package contains models for combined electric and thermal optimization."
 	
 	model Derivative
+		"Model of a derivative block"
     	input Real u "input";
     	output Real y "derivative";
     	parameter Real T = 0.1 "time constant";
@@ -14,6 +15,7 @@ package ElectricNetwork
    	end Derivative;
    	
    	model FirstOrder
+   		"Model of a first order block."
     	input Real u "input";
     	output Real y "derivative";
     	parameter Real T = 0.1 "time constant";
@@ -26,13 +28,14 @@ package ElectricNetwork
    	end derivative;
 
 	function smooth_max
-		input Real a;
-		input Real b;
-		output Real y;
+		"Smooth implementation of max(.,.) function."
+		input Real a "Input a";
+		input Real b "Input b";
+		output Real y "Maximum between a and b";
 	protected 
-		Real x;
-		Real alpha;
-		parameter Real delta = 0.1;
+		Real x "Scaled difference between a and b";
+		Real alpha "Scalar comprise between 0 and 1 that determines the max between a and b";
+		parameter Real delta = 0.1 "Scaling factor";
 	algorithm 
 		x := (a - b)/delta;
 		alpha := (atan(x)/asin(1) + 1)/2;
@@ -42,15 +45,16 @@ package ElectricNetwork
 	end smooth_max;
 	
 	function der_smooth_max
-		input Real a;
-		input Real b;
-		input Real der_a;
-		input Real der_b;
-		output Real out;
+		"Function that implements the first derivative of the smooth_max function"
+		input Real a "Input a";
+		input Real b "Input b";
+		input Real der_a "Derivative of input a";
+		input Real der_b "Derivative of input b";
+		output Real out "First derivative of the smooth_max function";
 	protected
-		parameter Real delta = 0.1;
-		Real alpha;
-		Real x;
+		Real x "Scaled difference between a and b";
+		Real alpha "Scalar comprise between 0 and 1 that determines the max between a and b";
+		parameter Real delta = 0.1 "Scaling factor";
 	algorithm
 		x := (a - b)/delta;
 		alpha := (atan(x)/asin(1) + 1)/2;
@@ -60,18 +64,19 @@ package ElectricNetwork
 	end der_smooth_max;
 
 	function der_der_smooth_max
-		input Real a;
-		input Real b;
-		input Real der_a;
-		input Real der_b;
-		input Real der_2_a;
-		input Real der_2_b;
-		output Real out;
+		"Function that implements the second derivative of the smooth_max function"
+		input Real a "Input a";
+		input Real b "Input b";
+		input Real der_a "Derivative of input a";
+		input Real der_b "Derivative of input b";
+		input Real der_2_a "Second derivative of input a";
+		input Real der_2_b "Second derivative of input b";
+		output Real out "Second derivative of the smooth_max function";
 	protected
-		parameter Real delta = 0.1;
-		Real alpha;
-		Real der_alpha;
-		Real x;
+		Real x "Scaled difference between a and b";
+		Real alpha "Scalar comprise between 0 and 1 that determines the max between a and b";
+		Real der_alpha "Derivative of alpha";
+		parameter Real delta = 0.1 "Scaling factor";
 	algorithm
 		x := (a - b)/delta;
 		alpha := (atan(x)/asin(1) + 1)/2;
@@ -81,13 +86,14 @@ package ElectricNetwork
 	end der_der_smooth_max;
 
 	function smooth_min
-		input Real a;
-		input Real b;
-		output Real y;
+		"Smooth implementation of min(.,.) function."
+		input Real a "Input a";
+		input Real b "Input b";
+		output Real y "Minimum between a and b";
 	protected 
-		Real x;
-		Real alpha;
-		parameter Real delta = 0.1;
+		Real x "Scaled difference between a and b";
+		Real alpha "Scalar comprise between 0 and 1 that determines the min between a and b";
+		parameter Real delta = 0.1 "Scaling factor";
 	algorithm 
 		x := (a - b)/delta;
 		alpha := (atan(x)/asin(1) + 1)/2;
@@ -97,15 +103,16 @@ package ElectricNetwork
 	end smooth_min;
 
 	function der_smooth_min
-		input Real a;
-		input Real b;
-		input Real der_a;
-		input Real der_b;
-		output Real out;
+		"Function that implements the first derivative of the smooth_min function"
+		input Real a "Input a";
+		input Real b "Input b";
+		input Real der_a "Derivative of input a";
+		input Real der_b "Derivative of input b";
+		output Real out "First derivative of the smoth_min function";
 	protected
-		parameter Real delta = 0.1;
-		Real alpha;
-		Real x;
+		Real x "Scaled difference between a and b";
+		Real alpha "Scalar comprise between 0 and 1 that determines the min between a and b";
+		parameter Real delta = 0.1 "Scaling factor";
 	algorithm
 		x := (a - b)/delta;
 		alpha := (atan(x)/asin(1) + 1)/2;
@@ -114,19 +121,20 @@ package ElectricNetwork
 		derivative(order = 2) = der_der_smooth_min);
 	end der_smooth_min;
 
-	function der_der_smooth_min
-		input Real a;
-		input Real b;
-		input Real der_a;
-		input Real der_b;
-		input Real der_2_a;
-		input Real der_2_b;
-		output Real out;
+	function der_der_smooth_min	
+		"Function that implements the second derivative of the smooth_min function"
+		input Real a "Input a";
+		input Real b "Input b";
+		input Real der_a "Derivative of input a";
+		input Real der_b "Derivative of input b";
+		input Real der_2_a "Second derivative of input a";
+		input Real der_2_b "Second derivative of input b";
+		output Real out "Second derivative of the smooth_min function";
 	protected
-		parameter Real delta = 0.1;
-		Real alpha;
-		Real der_alpha;
-		Real x;
+		Real x "Scaled difference between a and b";
+		Real alpha "Scalar comprise between 0 and 1 that determines the max between a and b";
+		Real der_alpha "Derivative of alpha";
+		parameter Real delta = 0.1 "Scaling factor";
 	algorithm
 		x := (a - b)/delta;
 		alpha := (atan(x)/asin(1) + 1)/2;
@@ -136,54 +144,57 @@ package ElectricNetwork
 	end der_der_smooth_min;
 
 	function smooth_lim
-		input Real u;
-		input Real M;
-		input Real m;
-		output Real y;
-	algorithm 
+		"Function that implements a smooth version of the limit function"
+		input Real u "Input u";
+		input Real M "Maximum limit for output y";
+		input Real m "Minimum limit for output y";
+		output Real y "Output y = lim(u)";
+	algorithm
 		y := ElectricNetwork.smooth_max(m, ElectricNetwork.smooth_min(M, u));
 	end smooth_lim;
 
 	model smooth_lim_PI
-		Modelica.Blocks.Interfaces.RealInput sp;
-		Modelica.Blocks.Interfaces.RealInput pv;
-		Modelica.Blocks.Interfaces.RealOutput cs;
-		parameter Real K = 1;
-		parameter Real Ti = 10;
-		parameter Real b = 1.0;
-		parameter Real CS_start = 0;
-		parameter Real CS_max = 1;
-		parameter Real CS_min = 0;
+		"PI controller that implements a smooth anti-windup mechanism"
+		Modelica.Blocks.Interfaces.RealInput sp "Set point variable";
+		Modelica.Blocks.Interfaces.RealInput pv "Process variable";
+		Modelica.Blocks.Interfaces.RealOutput cs "Control signal";
+		parameter Real K = 1 "Proportional gain";
+		parameter Real Ti = 10 "Integral time";
+		parameter Real b = 1.0 "Weight for proportional action";
+		parameter Real CS_start = 0 "Initial value for control signal";
+		parameter Real CS_max = 1 "Maximum value for control signal";
+		parameter Real CS_min = 0 "Minimum value for control signal";
 	protected 
-		Real f_cs;
+		Real f_cs "Filtered feedback of the control signal";
 	initial equation
 		f_cs = CS_start - K*(b*sp - pv);
 	equation 
 		cs = ElectricNetwork.smooth_lim(K*(b*sp - pv) + f_cs, CS_max, CS_min);
-		//cs = max(CS_min, min(K*(b*sp - pv) + f_cs, CS_max));
-		//cs = K*(b*sp - pv) + f_cs;
 		f_cs + Ti*der(f_cs) = cs;
 	end smooth_lim_PI;
 	
 	connector Pin
-		Modelica.SIunits.Voltage v[2];
-		flow Modelica.SIunits.Current i[2];
+		"Electrical connector for AC systems"
+		Modelica.SIunits.Voltage v[2] "Voltage";
+		flow Modelica.SIunits.Current i[2] "Current";
 	end Pin;
 	
 	model Source
-		ElectricNetwork.Pin p;
-		parameter Modelica.SIunits.Voltage Vrms = 4800;
-		parameter Modelica.SIunits.Angle theta = 0;
+		"Model of an AC source with fixed voltage"
+		ElectricNetwork.Pin p "Electrical connector";
+		parameter Modelica.SIunits.Voltage Vrms = 4800 "RMS voltage of the source";
+		parameter Modelica.SIunits.Angle theta = 0 "Phase shift of the voltage source phasor";
 	equation
 		p.v[1] = Vrms*cos(theta);
 		p.v[2] = Vrms*sin(theta);
 	end Source;
 	
 	model Line
-		ElectricNetwork.Pin a;
-		ElectricNetwork.Pin b;
-		parameter Modelica.SIunits.Resistance R = 0.1;
-		parameter Modelica.SIunits.Resistance X = 0;
+		"Model of an AC line represented by an impedance Z = R + jX"
+		ElectricNetwork.Pin a "Electrical connector side a";
+		ElectricNetwork.Pin b "Electrical connector side b";
+		parameter Modelica.SIunits.Resistance R = 0.1 "Resistance of the line";
+		parameter Modelica.SIunits.Resistance X = 0 "Reactance of the line";
 	equation
 		a.i[1] + b.i[1] = 0;
 		a.i[2] + b.i[2] = 0;
@@ -192,27 +203,35 @@ package ElectricNetwork
 	end Line;
 	
 	model Load
-		ElectricNetwork.Pin p(v(start = {Vn, 0}));
-		Modelica.SIunits.Voltage Vrms(start = Vn);
-		parameter Modelica.SIunits.Voltage Vn = 220;
-		Modelica.Blocks.Interfaces.RealInput P;
-		Modelica.Blocks.Interfaces.RealInput Q;
+		"Electric load model with active and reactive power as inputs"
+		ElectricNetwork.Pin p(v(start = {Vn, 0})) "Electric connector";
+		Modelica.SIunits.Voltage Vrms(start = Vn) "RMS voltage of the load";
+		parameter Modelica.SIunits.Voltage Vn = 220 "Nominal RMS voltage";
+		Modelica.Blocks.Interfaces.RealInput P "Active power of the load (>0 if produced)";
+		Modelica.Blocks.Interfaces.RealInput Q "Reactive power of the load (>0 if produced)";
 	equation
 		Vrms = sqrt(p.v[2]^2 + p.v[1]^2);
-		//p.i[1] = -(p.v[2]*Q + p.v[1]*P)/(Vn^2);
-	    //p.i[2] = -(p.v[2]*P - p.v[1]*Q)/(Vn^2);
+		
+		// Nonlinear version
 	    p.i[1] = -(p.v[2]*Q + p.v[1]*P)/(p.v[1]^2 + p.v[2]^2);
 	    p.i[2] = -(p.v[2]*P - p.v[1]*Q)/(p.v[1]^2 + p.v[2]^2);
+	    
+	    // Linearized version
+	    //p.i[1] = -(p.v[2]*Q + p.v[1]*P)/(Vn^2);
+	    //p.i[2] = -(p.v[2]*P - p.v[1]*Q)/(Vn^2);
+	    
 	end Load;
 	
 	model Battery
+		"Model of a battery"
 		extends ElectricNetwork.Load;
 		parameter Modelica.SIunits.Energy Ebatt = 100 "Storage capacity for the battery";
-		parameter Real SOCstart = 0.5;
-		Real SOC(start = SOCstart, fixed = true, min = 0, max = 1);
+		parameter Real SOCstart = 0.5 "Initial state of charge";
+		Real SOC(start = SOCstart, fixed = true, min = 0, max = 1) "Battery state of charge";
 	equation
 		// Ideal battery model
 		Ebatt*der(SOC) = -P;
+		
 	end Battery;
 	
 	block StateSpace "Linear state space system"
