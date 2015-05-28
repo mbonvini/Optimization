@@ -222,8 +222,8 @@ package ElectricNetwork
 	    
 	end Load;
 	
-	model Battery
-		"Model of a battery"
+	model IdealBattery
+		"Model of an ideal battery"
 		extends ElectricNetwork.Load;
 		parameter Modelica.SIunits.Energy Ebatt = 100 "Storage capacity for the battery";
 		parameter Real SOCstart = 0.5 "Initial state of charge";
@@ -231,6 +231,19 @@ package ElectricNetwork
 	equation
 		// Ideal battery model
 		Ebatt*der(SOC) = -P;
+		
+	end IdealBattery;
+	
+	model Battery
+		"Model of a battery with conversion efficiency losses"
+		extends ElectricNetwork.Load;
+		parameter Modelica.SIunits.Energy Ebatt = 100 "Storage capacity for the battery";
+		parameter Real SOCstart = 0.5 "Initial state of charge";
+		parameter Real eta = 0.9 "Efficiency of the battery in AC/DC conversion";
+		Real SOC(start = SOCstart, fixed = true, min = 0, max = 1) "Battery state of charge";
+	equation
+		// Battery model with constant efficiency
+		Ebatt*der(SOC) = -(ElectricNetwork.smooth_max(P,0)*(2-eta) + ElectricNetwork.smooth_min(P,0)*eta);
 		
 	end Battery;
 	
