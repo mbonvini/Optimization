@@ -217,8 +217,8 @@ package ElectricNetwork
 	    p.i[2] = -(p.v[2]*P - p.v[1]*Q)/(p.v[1]^2 + p.v[2]^2);
 	    
 	    // Linearized version
-	    //p.i[1] = -(p.v[2]*Q + p.v[1]*P)/(Vn^2);
-	    //p.i[2] = -(p.v[2]*P - p.v[1]*Q)/(Vn^2);
+	    // p.i[1] = -(p.v[2]*Q + p.v[1]*P)/(Vn^2);
+	    // p.i[2] = -(p.v[2]*P - p.v[1]*Q)/(Vn^2);
 	    
 	end Load;
 	
@@ -242,6 +242,7 @@ package ElectricNetwork
 		parameter Real eta = 0.9 "Efficiency of the battery in AC/DC conversion";
 		Real SOC(start = SOCstart, fixed = true, min = 0, max = 1) "Battery state of charge";
 	equation
+
 		// Battery model with constant efficiency
 		Ebatt*der(SOC) = -(ElectricNetwork.smooth_max(P,0)*(2-eta) + ElectricNetwork.smooth_min(P,0)*eta);
 		
@@ -429,36 +430,18 @@ package ElectricNetwork
 		linBuiModel(x_start={-122607,3639.71,-17432.3,5786.65,-1898.14, -402.35,806.319,720.688}));
 	end RCBuildingModel8PV;
 	
-	model SingleBuildingElectric
-		"Model of a single building connected to a voltage source"
-		extends ElectricNetwork.RCBuildingModel8;
-        ElectricNetwork.Source S(Vrms=Vs) "Voltage source";
-        Real S_pow "Apparent power consumption";
-        Real P_pow "Active power consumption";
-    equation
-    
-    	// No control action
-    	Pctrl = 0.0;
-    	
-    	// Connect source grid to the building
-    	connect(S.p, p);
-    	
-    	// Compute energy and cost using voltage and currents
-    	S_pow = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2]);
-    	P_pow = -(bldg.P + batt.P);
-    	
-	    der(Money) = P_pow*price/1000.0/3600.0;
-	    der(E) = ElectricNetwork.smooth_max(0.0, P_pow)/1000.0/3600.0;
-	    
-	end SingleBuildingElectric;
-	
 	model SingleBuildingElectricCtrl
 		"Model of a single building connected to a voltage source with PI controller
 		for thermal confort"
 		extends ElectricNetwork.RCBuildingModel8;
+
         ElectricNetwork.Source S(Vrms=Vs) "Voltage source";
-        Real S_pow "Apparent power consumption";
-        Real P_pow "Active power consumption";
+        Modelica.SIunits.Power S_pow "Apparent power consumption";
+        Modelica.SIunits.Power P_pow "Active power consumption";
+
+        Modelica.Blocks.Interfaces.RealInput co2_kW "Signal that indicates the kg of CO2 per kW";
+		Modelica.Blocks.Interfaces.RealOutput CO2(unit="kg") "Carbon dioxide production associated to the building";
+
         ElectricNetwork.smooth_lim_PI pi_up(K = 2*6e3, Ti = 1e5, CS_max = 0, CS_min=-2.5e5, b = 1.0, CS_start = -2e5)
         "PI controller that prevent the temperature to be higher than the set point";
     equation
@@ -470,8 +453,10 @@ package ElectricNetwork
     	S_pow = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2]);
     	P_pow = -(bldg.P + batt.P);
     	
+    	// Compute the different cost functions: Money, Energy and CO2
 	    der(Money) = P_pow*price/1000.0/3600.0;
 	    der(E) = ElectricNetwork.smooth_max(0.0, P_pow)/1000.0/3600.0;
+	    der(CO2) = ElectricNetwork.smooth_max(0.0, P_pow)*co2_kW/1.0e3;
 	    
 	    // Control the building Temperature with PI
         Pctrl = pi_up.cs;
@@ -484,13 +469,20 @@ package ElectricNetwork
 		"Model of a single building connected to a voltage source with relay based controller
 		for thermal confort"
 		extends ElectricNetwork.RCBuildingModel8;
+
         ElectricNetwork.Source S(Vrms=Vs) "Voltage source";
-        Real S_pow "Apparent power consumption";
-        Real P_pow "Active power consumption";
-        Real CoolPower = -2.1e5 "Maximum cooling power (cooling = ON)";
-        Real CoolPowerMin = 0.4*CoolPower "Minimum cooling power (cooling = OFF)";
+        Modelica.SIunits.Power S_pow "Apparent power consumption";
+        Modelica.SIunits.Power P_pow "Active power consumption";
+
+        Modelica.SIunits.Power CoolPower = -2.1e5 "Maximum cooling power (cooling = ON)";
+        Modelica.SIunits.Power CoolPowerMin = 0.4*CoolPower "Minimum cooling power (cooling = OFF)";
+
         discrete Boolean cooling "Variable describing the cooling mode";
         parameter Real Tcool = 360 "Time constant of cooling system";
+
+        Modelica.Blocks.Interfaces.RealInput co2_kW "Signal that indicates the kg of CO2 per kW";
+		Modelica.Blocks.Interfaces.RealOutput CO2(unit="kg") "Carbon dioxide production associated to the building";
+
     initial equation
     	// Initial state of the cooling mode
     	pre(cooling) = false;
@@ -512,8 +504,10 @@ package ElectricNetwork
     	S_pow = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2]);
     	P_pow = -(bldg.P + batt.P);
     	
+    	// Compute the different cost functions: Money, Energy and CO2
 	    der(Money) = P_pow*price/1000.0/3600.0;
 	    der(E) = ElectricNetwork.smooth_max(0.0, P_pow)/1000.0/3600.0;
+	    der(CO2) = ElectricNetwork.smooth_max(0.0, P_pow)*co2_kW/1.0e3;
 	    
 	    // Dynamic of the cooling system
         Pctrl + Tcool*der(Pctrl) = if (cooling) then CoolPower else CoolPowerMin;
@@ -521,13 +515,24 @@ package ElectricNetwork
 	end SingleBuildingElectricCtrlRelay;
 	
 	model SingleBuildingElectricCtrlRelayPV
+		"Model of a single building connected to a voltage source with relay based controller
+		for thermal confort and PVs"
 		extends ElectricNetwork.RCBuildingModel8PV;
-        ElectricNetwork.Source S(Vrms=Vs);
-        Real S_pow;
-        Real P_pow;
-        Real CoolPower = -2.1e5;
-        discrete Boolean cooling;
+
+		ElectricNetwork.Source S(Vrms=Vs) "Voltage source";
+        Modelica.SIunits.Power S_pow "Apparent power consumption";
+        Modelica.SIunits.Power P_pow "Active power consumption";
+
+        Modelica.SIunits.Power CoolPower = -2.1e5 "Maximum cooling power (cooling = ON)";
+        Modelica.SIunits.Power CoolPowerMin = 0.4*CoolPower "Minimum cooling power (cooling = OFF)";
+
+        discrete Boolean cooling "Boolean variable that indicates when the cooling system is active";
+
+        Modelica.Blocks.Interfaces.RealInput co2_kW "Signal that indicates the kg of CO2 per kW";
+		Modelica.Blocks.Interfaces.RealOutput CO2(unit="kg") "Carbon dioxide production associated to the building";
+
     initial equation
+    	// Initial state of the cooling mode
     	pre(cooling) = false;
     algorithm
     	// Control the building Temperature
@@ -547,19 +552,30 @@ package ElectricNetwork
     	S_pow = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2]);
     	P_pow = -(pv.P + bldg.P + batt.P);
     	
+	    // Compute the different cost functions: Money, Energy and CO2
 	    der(Money) = P_pow*price/1000.0/3600.0;
 	    der(E) = ElectricNetwork.smooth_max(0.0, P_pow)/1000.0/3600.0;
+	    der(CO2) = ElectricNetwork.smooth_max(0.0, P_pow)*co2_kW/1.0e3;
 	    
-        Pctrl + 360*der(Pctrl) = if (cooling) then CoolPower else 0.4*CoolPower;
+	    // Dynamic of the cooling system
+        Pctrl + 360*der(Pctrl) = if (cooling) then CoolPower else CoolPowerMin;
 	    
 	end SingleBuildingElectricCtrlRelayPV;
 	
 	model SingleBuildingElectricCtrlPV
+		"Model of a single building connected to a voltage source with PI controller
+		for thermal confort and PVs"
 		extends ElectricNetwork.RCBuildingModel8PV;
-        ElectricNetwork.Source S(Vrms=Vs);
-        Real S_pow;
-        Real P_pow;
-        ElectricNetwork.smooth_lim_PI pi_up(K = 1e3, Ti = 1.0e3, CS_max = 0, CS_min=-2.5e5, b = 1.0);
+        ElectricNetwork.Source S(Vrms=Vs) "Voltage source";
+        Modelica.SIunits.Power S_pow "Apparent power consumption";
+        Modelica.SIunits.Power P_pow "Active power consumption";
+
+        ElectricNetwork.smooth_lim_PI pi_up(K = 1e3, Ti = 1.0e3, CS_max = 0, CS_min=-2.5e5, b = 1.0)
+        "PI controller model";
+
+        Modelica.Blocks.Interfaces.RealInput co2_kW "Signal that indicates the kg of CO2 per kW";
+		Modelica.Blocks.Interfaces.RealOutput CO2(unit="kg") "Carbon dioxide production associated to the building";
+
     equation
     
     	// Connect source grid to the building
@@ -569,8 +585,10 @@ package ElectricNetwork
     	S_pow = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2]);
     	P_pow = -(pv.P + bldg.P + batt.P);
     	
+	    // Compute the different cost functions: Money, Energy and CO2
 	    der(Money) = P_pow*price/1000.0/3600.0;
 	    der(E) = ElectricNetwork.smooth_max(0.0, P_pow)/1000.0/3600.0;
+	    der(CO2) = ElectricNetwork.smooth_max(0.0, P_pow)*co2_kW/1.0e3;
 	    
 	    // Control the building Temperature with PI
         Pctrl = pi_up.cs;
@@ -579,13 +597,53 @@ package ElectricNetwork
 	    
 	end SingleBuildingElectricCtrlPV;
 	
-	model SingleBuildingElectricPV
-		extends ElectricNetwork.RCBuildingModel8PV;
-        ElectricNetwork.Source S(Vrms=Vs);
-        Real S_pow;
-        Real P_pow;
+
+	model SingleBuildingElectric
+		"Model of a single building connected to a voltage source for optimal control"
+		extends ElectricNetwork.RCBuildingModel8;
+
+        ElectricNetwork.Source S(Vrms=Vs) "Voltage source";
+        Modelica.SIunits.Power S_pow "Apparent power consumption";
+        Modelica.SIunits.Power P_pow "Active power consumption";
+
+		Modelica.Blocks.Interfaces.RealInput co2_kW "Signal that indicates the kg of CO2 per kW";
+		Modelica.Blocks.Interfaces.RealOutput CO2(unit="kg") "Carbon dioxide production associated to the building";
+		
     equation
-    	// No control
+    
+    	// No control action by local controller. The optimal P_hvac will be computed by the
+    	// NLP solver
+    	Pctrl = 0.0;
+    	
+    	// Connect source grid to the building
+    	connect(S.p, p);
+    	
+    	// Compute energy and cost using voltage and currents
+    	S_pow = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2]);
+    	P_pow = -(bldg.P + batt.P);
+    	
+    	// Compute the different cost functions: Money, Energy and CO2
+	    der(Money) = P_pow*price/1000.0/3600.0;
+	    der(E) = ElectricNetwork.smooth_max(0.0, P_pow)/1000.0/3600.0;
+	    der(CO2) = ElectricNetwork.smooth_max(0.0, P_pow)*co2_kW/1.0e3;
+	    
+	end SingleBuildingElectric;
+
+
+	model SingleBuildingElectricPV
+		"Model of a single building connected to a voltage source with PVs for optimal control"
+		extends ElectricNetwork.RCBuildingModel8PV;
+        ElectricNetwork.Source S(Vrms=Vs) "Voltage source";
+        Modelica.SIunits.Power S_pow "Apparent power consumption";
+        Modelica.SIunits.Power P_pow "Active power consumption";
+
+        Modelica.Blocks.Interfaces.RealInput co2_kW "Signal that indicates the kg of CO2 per kW";
+		Modelica.Blocks.Interfaces.RealOutput CO2(unit="kg") "Carbon dioxide production associated to the building";
+
+    equation
+
+    	// No control action by local controller. The optimal P_hvac will be computed by the
+    	// NLP solver
     	Pctrl = 0.0;
     
     	// Connect source grid to the building
@@ -595,29 +653,164 @@ package ElectricNetwork
     	S_pow = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2]);
     	P_pow = -(pv.P + bldg.P + batt.P);
     	
+	    // Compute the different cost functions: Money, Energy and CO2
 	    der(Money) = P_pow*price/1000.0/3600.0;
 	    der(E) = ElectricNetwork.smooth_max(0.0, P_pow)/1000.0/3600.0;
+	    der(CO2) = ElectricNetwork.smooth_max(0.0, P_pow)*co2_kW/1.0e3;
 	    
 	end SingleBuildingElectricPV;
+
+	model BuildingElectricPV
+		"Model of a building to be used in the district network optimization problem"
+		extends ElectricNetwork.RCBuildingModel8PV(p(v(start = {Vn, 0})));
+		parameter Modelica.SIunits.Voltage Vn = 4800 "Nominal voltage of the building";
+		Modelica.SIunits.Voltage Vrms(start = Vn) "RMS voltage of the building";
+        Modelica.SIunits.Power S_pow "Apparent power consumption";
+        Modelica.SIunits.Power P_pow "Active power consumption";
+
+        Modelica.Blocks.Interfaces.RealInput co2_kW "Signal that indicates the kg of CO2 per kW";
+		Modelica.Blocks.Interfaces.RealOutput CO2(unit="kg") "Carbon dioxide production associated to the building";
+    equation
+    	
+    	// No control action by local controller. The optimal P_hvac will be computed by the
+    	// NLP solver
+    	Pctrl = 0.0;
+    
+    	// RMS voltage at node
+    	Vrms = sqrt(p.v[1]*p.v[1] + p.v[2]*p.v[2]);
+    	
+    	// Compute energy and cost using voltage and currents
+    	S_pow = -(p.v[1]*p.i[1] + p.v[2]*p.i[2]);
+    	P_pow = -(pv.P + bldg.P + batt.P);
+    	
+	    // Compute the different cost functions: Money, Energy and CO2
+	    der(Money) = P_pow*price/1000.0/3600.0;
+	    der(E) = ElectricNetwork.smooth_max(0.0, P_pow)/1000.0/3600.0;
+	    der(CO2) = ElectricNetwork.smooth_max(0.0, P_pow)*co2_kW/1.0e3;
+	    
+	end BuildingElectricPV;
 	
+	model District
+		"Model of a district system composed by multiple buildings connected by an electric network"
+ 		
+	  	Modelica.SIunits.Power P_network "Active power consumption of the network";
+
+ 		// Parameters of the electrical network
+	    parameter Real R1 = 1.5*1.2 "Line resistance 1";
+        parameter Real R2 = 1.5*1.1 "Line resistance 2";
+        parameter Real R3 = 1.5*1.05 "Line resistance 3";
+        parameter Modelica.SIunits.Voltage Vs = 4800 "Voltage source";
+
+	  	// Variables to optimize
+	  	Real E(start = 0.0, fixed = true) "Electric energy consumed by the district";
+	  	Real Money(start = 0.0, fixed = true) "Money to run the district";
+	  	Real CO2(start = 0.0, fixed = true) "Carbon dioxide production associated to the building";
+	  	
+	  	// Inputs & outputs
+	    Modelica.Blocks.Interfaces.RealInput price "Price of kWh";
+	    Modelica.Blocks.Interfaces.RealInput co2_kW "Signal that indicates the kg of CO2 per kW";
+
+	  	Modelica.Blocks.Interfaces.RealInput ihg_1 "Internal heat gains for building 1";
+	  	Modelica.Blocks.Interfaces.RealInput ihg_2 "Internal heat gains for building 2";
+	  	Modelica.Blocks.Interfaces.RealInput ihg_3 "Internal heat gains for building 3";
+
+	    Modelica.Blocks.Interfaces.RealInput Tamb "Outdoor air temperature";
+	    Modelica.Blocks.Interfaces.RealInput Tgnd "Ground temperature";
+	    Modelica.Blocks.Interfaces.RealInput solGlobFac_E "Solar radiation on face E";
+	    Modelica.Blocks.Interfaces.RealInput solGlobFac_N "Solar radiation on face N";
+	    Modelica.Blocks.Interfaces.RealInput solGlobFac_S "Solar radiation on face S";
+	    Modelica.Blocks.Interfaces.RealInput solGlobFac_W "Solar radiation on face W";
+
+	    // Decision variables for each building: cooling power and power to be stored in the batteries
+	    Modelica.Blocks.Interfaces.RealInput P_hvac_A "Cooling power building A";
+	    Modelica.Blocks.Interfaces.RealInput P_hvac_B "Cooling power building B";
+	    Modelica.Blocks.Interfaces.RealInput P_hvac_C "Cooling power building C";
+	    Modelica.Blocks.Interfaces.RealInput P_batt_A "Power to store/recover from battery in building A";
+	    Modelica.Blocks.Interfaces.RealInput P_batt_B "Power to store/recover from battery in building B";
+	    Modelica.Blocks.Interfaces.RealInput P_batt_C "Power to store/recover from battery in building C";
+	
+	  	// Building models
+	  	ElectricNetwork.BuildingElectricPV buiA(Vn = Vs, A_s = 0.9, A_n = 0.0, A_e = 0.1, A_w = 0.0, P_solar = 6.0e5) "Building A";
+		ElectricNetwork.BuildingElectricPV buiB(Vn = Vs, A_s = 0.7, A_n = 0.0, A_e = 0.15, A_w = 0.15, P_solar = 5.5e5) "Building B";
+		ElectricNetwork.BuildingElectricPV buiC(Vn = Vs, A_s = 0.7, A_n = 0.0, A_e = 0.3, A_w = 0.0, P_solar = 4.5e5) "Building C";
+	    
+	    // Electrical models
+		ElectricNetwork.Source S(Vrms=Vs) "Voltage source";
+		
+		ElectricNetwork.Line line1(R=R1, X=R1/10) "Electric line model between source and building A";
+		ElectricNetwork.Line line2(R=R2, X=R2/12) "Electric line model between building A and B";
+		ElectricNetwork.Line line3(R=R3, X=R3/10) "Electric line model between building B and C";
+			
+	equation
+	
+	    // Active power of the entire network
+	    P_network = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2]);
+
+		// Energy and money to run the district
+		der(Money) = P_network*price/1000.0/3600.0;
+		der(E) = ElectricNetwork.smooth_max(0.0, P_network)/1000.0/3600.0;
+		der(CO2) = ElectricNetwork.smooth_max(0.0, P_network)*co2_kW/1.0e3;
+		
+	    // Connect the lines to the source
+		connect(S.p,     line1.a);
+		connect(line1.b, line2.a);
+		connect(line2.b, line3.a);
+		
+		// Connect each building and PVs
+		connect(buiA.p, line1.b);
+		connect(buiB.p, line2.b);
+		connect(buiC.p, line3.b);
+		
+		// Connect the external weather inputs to the buildings and also the CO@ and prce signals
+		buiA.price  = price;       buiB.price  = price;       buiC.price  = price;
+		buiA.co2_kW = co2_kW;      buiB.co2_kW = co2_kW;      buiC.co2_kW = co2_kW;
+		buiA.u[1]   = ihg_1;       buiB.u[1]   = ihg_2;       buiC.u[1]   = ihg_3;
+		buiA.u[2]   = Tamb;        buiB.u[2]   = Tamb;        buiC.u[2]   = Tamb;
+		buiA.u[3]   = Tgnd;        buiB.u[3]   = Tgnd;        buiC.u[3]   = Tgnd;
+		buiA.u[4]   = solGlobFac_E;buiB.u[4]   = solGlobFac_E;buiC.u[4]   = solGlobFac_E;
+		buiA.u[5]   = solGlobFac_N;buiB.u[5]   = solGlobFac_N;buiC.u[5]   = solGlobFac_N;
+		buiA.u[6]   = solGlobFac_S;buiB.u[6]   = solGlobFac_S;buiC.u[6]   = solGlobFac_S;
+		buiA.u[7]   = solGlobFac_W;buiB.u[7]   = solGlobFac_W;buiC.u[7]   = solGlobFac_W;
+		
+		// Connect the control variables
+		connect(buiA.P_hvac, P_hvac_A);
+		connect(buiB.P_hvac, P_hvac_B);
+		connect(buiC.P_hvac, P_hvac_C);
+		
+		connect(buiA.P_batt, P_batt_A);
+		connect(buiB.P_batt, P_batt_B);
+		connect(buiC.P_batt, P_batt_C);
+		
+	end District;
+
+	/* Optimization problem for single building: Minimize Energy
+	   Constraints:
+	   - Thermal comfort,
+	   - HVAC limits,
+	   - Battery limits (power and SOC)
+	  */
 	optimization BuildingMngmtOpt_E( objective = E(finalTime),
 								     objectiveIntegrand = 0*1e-12*P_hvac*P_hvac,
 									 startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
         extends ElectricNetwork.SingleBuildingElectric(
-        E(free = true, initialGuess = 0.0, min = 0.0),
-        Money(free = false, initialGuess = 0.0, min = 0.0),
-        SOCstart(free = false, initialGuess=0.5, min=0.2, max=1.0));
+	        E(free = true, initialGuess = 0.0, min = 0.0),
+	        Money(free = false, initialGuess = 0.0, min = 0.0),
+	        SOCstart(free = false, initialGuess=0.5, min=0.2, max=1.0));
         parameter Real Tmin = 273.15+20;
         parameter Real Tmax = 273.15+24;
         parameter Real Pmax_charge = 0.5e5;
     constraint
         Money(startTime) = 0.0;
+
         Tmix <= Tmax;
         Tmin <= Tmix;
+        
         P_hvac <= 0;
         -2.5e5 <= P_hvac;
+        
         batt.SOC <= 1.0;
         0.2 <= batt.SOC;
+        
         batt.P <= Pmax_charge;
         -Pmax_charge <= batt.P;
         
@@ -625,24 +818,34 @@ package ElectricNetwork
         
     end BuildingMngmtOpt_E;
     
+    /* Optimization problem for single building with PVs: Minimize Energy
+	   Constraints:
+	   - Thermal comfort,
+	   - HVAC limits,
+	   - Battery limits (power and SOC)
+	  */
     optimization BuildingMngmtOpt_E_PV( objective = E(finalTime),
     									objectiveIntegrand = 0*0.1e-12*P_hvac*P_hvac,
     									startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
         extends ElectricNetwork.SingleBuildingElectricPV(
-        E(free = true, initialGuess = 0.0, min = 0.0),
-        Money(free = false, initialGuess = 0.0, min = 0.0),
-        SOCstart(free = true, initialGuess=0.5, min=0.2, max=1.0));
+	        E(free = true, initialGuess = 0.0, min = 0.0),
+	        Money(free = false, initialGuess = 0.0, min = 0.0),
+	        SOCstart(free = true, initialGuess=0.5, min=0.2, max=1.0));
         parameter Real Tmin = 273.15+20;
         parameter Real Tmax = 273.15+24;
         parameter Real Pmax_charge = 0.5e5;
     constraint
         Money(startTime) = 0.0;
-        Tmix <= Tmax;
-        Tmin <= Tmix;
+        
+        Tmix   <= Tmax;
+        Tmin   <= Tmix;
+
         P_hvac <= 0;
         -2.5e5 <= P_hvac;
+        
         batt.SOC <= 1.0;
         0.2 <= batt.SOC;
+        
         batt.P <= Pmax_charge;
         -Pmax_charge <= batt.P;
         
@@ -650,45 +853,162 @@ package ElectricNetwork
         
     end BuildingMngmtOpt_E_PV;
 
+    /* Optimization problem for single building with PVs: Minimize Energy
+	   Constraints:
+	   - Thermal comfort,
+	   - HVAC limits,
+	   - Battery limits (power and SOC),
+	   - Battery SOC at the end of every day within range
+	  */
 	optimization BuildingMngmtOpt_E_PV_batt_constraints
 		extends BuildingMngmtOpt_E_PV;
 	constraint
 		
 		batt.SOC(24.0*3600.0*1.0) <= 1.1*batt.SOC(startTime);
-        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*1.0);
+        0.9*batt.SOC(startTime)   <= batt.SOC(24.0*3600.0*1.0);
         
         batt.SOC(24.0*3600.0*2.0) <= 1.1*batt.SOC(startTime);
-        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*2.0);
+        0.9*batt.SOC(startTime)   <= batt.SOC(24.0*3600.0*2.0);
         
         batt.SOC(24.0*3600.0*3.0) <= 1.1*batt.SOC(startTime);
-        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*3.0);
+        0.9*batt.SOC(startTime)   <= batt.SOC(24.0*3600.0*3.0);
         
         batt.SOC(24.0*3600.0*4.0) <= 1.1*batt.SOC(startTime);
-        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*4.0);
+        0.9*batt.SOC(startTime)   <= batt.SOC(24.0*3600.0*4.0);
         
         batt.SOC(24.0*3600.0*5.0) <= 1.1*batt.SOC(startTime);
-        0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*5.0);
+        0.9*batt.SOC(startTime)   <= batt.SOC(24.0*3600.0*5.0);
         
 	end BuildingMngmtOpt_E_PV_batt_constraints;
 
-    optimization BuildingMngmtOpt_Money( objective = Money(finalTime), 
-    									 objectiveIntegrand = 0*1e-14*P_hvac*P_hvac,
-    									 startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
+	/* Optimization problem for single building: Minimize CO2
+	   Constraints:
+	   - Thermal comfort,
+	   - HVAC limits,
+	   - Battery limits (power and SOC)
+	  */
+	optimization BuildingMngmtOpt_CO2( objective = CO2(finalTime),
+								       objectiveIntegrand = 0*1e-12*P_hvac*P_hvac,
+									   startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
         extends ElectricNetwork.SingleBuildingElectric(
-        E(free=true, initialGuess = 0.0, min = 0.0),
-        Money(free=true, initialGuess = 0.0, min = 0.0),
-        SOCstart(free = true, initialGuess=0.5, min=0.2, max=1.0));
+        	E(free = true, initialGuess = 0.0, min = 0.0),
+        	Money(free = false, initialGuess = 0.0, min = 0.0),
+	        CO2(free = false, initialGuess = 0.0, min = 0.0),
+	        SOCstart(free = false, initialGuess=0.5, min=0.2, max=1.0));
         parameter Real Tmin = 273.15+20;
         parameter Real Tmax = 273.15+24;
         parameter Real Pmax_charge = 0.5e5;
     constraint
         Money(startTime) = 0.0;
+
         Tmix <= Tmax;
         Tmin <= Tmix;
+        
         P_hvac <= 0;
         -2.5e5 <= P_hvac;
+        
         batt.SOC <= 1.0;
         0.2 <= batt.SOC;
+        
+        batt.P <= Pmax_charge;
+        -Pmax_charge <= batt.P;
+        
+        batt.SOC(finalTime) = batt.SOC(startTime);
+        
+    end BuildingMngmtOpt_CO2;
+    
+    /* Optimization problem for single building with PVs: Minimize CO2
+	   Constraints:
+	   - Thermal comfort,
+	   - HVAC limits,
+	   - Battery limits (power and SOC)
+	  */
+    optimization BuildingMngmtOpt_CO2_PV( objective = CO2(finalTime),
+    									  objectiveIntegrand = 0*0.1e-12*P_hvac*P_hvac,
+    									  startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
+        extends ElectricNetwork.SingleBuildingElectricPV(
+        	E(free = true, initialGuess = 0.0, min = 0.0),
+        	Money(free = false, initialGuess = 0.0, min = 0.0),
+        	CO2(free = false, initialGuess = 0.0, min = 0.0),
+        	SOCstart(free = true, initialGuess=0.5, min=0.2, max=1.0));
+        parameter Real Tmin = 273.15+20;
+        parameter Real Tmax = 273.15+24;
+        parameter Real Pmax_charge = 0.5e5;
+    constraint
+        Money(startTime) = 0.0;
+        
+        Tmix   <= Tmax;
+        Tmin   <= Tmix;
+
+        P_hvac <= 0;
+        -2.5e5 <= P_hvac;
+        
+        batt.SOC <= 1.0;
+        0.2 <= batt.SOC;
+        
+        batt.P <= Pmax_charge;
+        -Pmax_charge <= batt.P;
+        
+        batt.SOC(finalTime) = batt.SOC(startTime);
+        
+    end BuildingMngmtOpt_CO2_PV;
+
+    /* Optimization problem for single building with PVs: Minimize CO2
+	   Constraints:
+	   - Thermal comfort,
+	   - HVAC limits,
+	   - Battery limits (power and SOC),
+	   - Battery SOC at the end of every day within range
+	  */
+	optimization BuildingMngmtOpt_CO2_PV_batt_constraints
+		extends BuildingMngmtOpt_CO2_PV;
+	constraint
+		
+		batt.SOC(24.0*3600.0*1.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime)   <= batt.SOC(24.0*3600.0*1.0);
+        
+        batt.SOC(24.0*3600.0*2.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime)   <= batt.SOC(24.0*3600.0*2.0);
+        
+        batt.SOC(24.0*3600.0*3.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime)   <= batt.SOC(24.0*3600.0*3.0);
+        
+        batt.SOC(24.0*3600.0*4.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime)   <= batt.SOC(24.0*3600.0*4.0);
+        
+        batt.SOC(24.0*3600.0*5.0) <= 1.1*batt.SOC(startTime);
+        0.9*batt.SOC(startTime)   <= batt.SOC(24.0*3600.0*5.0);
+        
+	end BuildingMngmtOpt_CO2_PV_batt_constraints;
+
+	/* Optimization problem for single building: Minimize Money
+	   Constraints:
+	   - Thermal comfort,
+	   - HVAC limits,
+	   - Battery limits (power and SOC)
+	  */
+    optimization BuildingMngmtOpt_Money( objective = Money(finalTime), 
+    									 objectiveIntegrand = 0*1e-14*P_hvac*P_hvac,
+    									 startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
+        extends ElectricNetwork.SingleBuildingElectric(
+	        E(free=true, initialGuess = 0.0, min = 0.0),
+	        Money(free=true, initialGuess = 0.0, min = 0.0),
+	        SOCstart(free = true, initialGuess=0.5, min=0.2, max=1.0));
+        parameter Real Tmin = 273.15+20;
+        parameter Real Tmax = 273.15+24;
+        parameter Real Pmax_charge = 0.5e5;
+    constraint
+        Money(startTime) = 0.0;
+
+        Tmix <= Tmax;
+        Tmin <= Tmix;
+        
+        P_hvac <= 0;
+        -2.5e5 <= P_hvac;
+        
+        batt.SOC <= 1.0;
+        0.2 <= batt.SOC;
+        
         batt.P <= Pmax_charge;
         -Pmax_charge <= batt.P;
         
@@ -696,31 +1016,48 @@ package ElectricNetwork
         
     end BuildingMngmtOpt_Money;
     
-    /* change cost of energy to be only the one consumed not produced */
+    /* Optimization problem for single building with PVs: Minimize Money
+	   Constraints:
+	   - Thermal comfort,
+	   - HVAC limits,
+	   - Battery limits (power and SOC)
+	  */
     optimization BuildingMngmtOpt_Money_PV( objective = Money(finalTime), 
     									    objectiveIntegrand = 0*1e-14*P_hvac*P_hvac,
     										startTime = 0.0, finalTime = 24.0*3600.0*6.0 )
         extends ElectricNetwork.SingleBuildingElectricPV(
-        E(free=true, initialGuess = 0.0, min = 0.0),
-        Money(free=true, initialGuess = 0.0, min = 0.0),
-        SOCstart(free = true, initialGuess=0.5, min=0.2, max=1.0));
+	        E(free=true, initialGuess = 0.0, min = 0.0),
+	        Money(free=true, initialGuess = 0.0, min = 0.0),
+	        SOCstart(free = true, initialGuess=0.5, min=0.2, max=1.0));
         parameter Real Tmin = 273.15+20;
         parameter Real Tmax = 273.15+24;
         parameter Real Pmax_charge = 0.5e5;
     constraint
         Money(startTime) = 0.0;
+
         Tmix <= Tmax;
         Tmin <= Tmix;
+        
         P_hvac <= 0;
         -2.5e5 <= P_hvac;
+        
         batt.SOC <= 1.0;
         0.2 <= batt.SOC;
+        
         batt.P <= Pmax_charge;
         -Pmax_charge <= batt.P;
+        
         batt.SOC(finalTime) = batt.SOC(startTime);
         
     end BuildingMngmtOpt_Money_PV;
 
+    /* Optimization problem for single building with PVs: Minimize Money
+	   Constraints:
+	   - Thermal comfort,
+	   - HVAC limits,
+	   - Battery limits (power and SOC),
+	   - Battery SOC at the end of every day within range
+	  */
 	optimization BuildingMngmtOpt_Money_PV_batt_constraints
 		extends BuildingMngmtOpt_Money_PV;
 	constraint
@@ -741,115 +1078,21 @@ package ElectricNetwork
         0.9*batt.SOC(startTime) <= batt.SOC(24.0*3600.0*5.0);
         
 	end BuildingMngmtOpt_Money_PV_batt_constraints;
-	
-	model BuildingElectricPV
-		extends ElectricNetwork.RCBuildingModel8PV(p(v(start = {Vn, 0})));
-		parameter Modelica.SIunits.Voltage Vn = 4800;
-		Modelica.SIunits.Voltage Vrms(start = Vn);
-        Real S_pow;
-        Real P_pow;
-    equation
-    	// No control
-    	Pctrl = 0.0;
-    
-    	// Voltage at node
-    	Vrms = sqrt(p.v[1]*p.v[1] + p.v[2]*p.v[2]);
-    	
-    	// Compute energy and cost using voltage and currents
-    	S_pow = -(p.v[1]*p.i[1] + p.v[2]*p.i[2]);
-    	P_pow = -(pv.P + bldg.P + batt.P);
-    	
-	    der(Money) = P_pow*price/1000.0/3600.0;
-	    der(E) = ElectricNetwork.smooth_max(0.0, P_pow)/1000.0/3600.0;
-	    
-	end BuildingElectricPV;
-	
-	model District
-		"Model of a district system, buildings + electrical network"
-		// Parameters
-        parameter Real Tsp_bui = 273.15 + 22;
-	    parameter Real R1 = 1.5*1.2 "Line resistance 1";
-        parameter Real R2 = 1.5*1.1 "Line resistance 2";
-        parameter Real R3 = 1.5*1.05 "Line resistance 3";
-        parameter Modelica.SIunits.Voltage Vs = 4800 "Voltage source";
- 	
-	  	// Variables
-	  	Real E(start = 0.0, fixed = true) "Electric energy consumed by the district";
-	  	Real Money(start = 0.0, fixed = true) "Money to run the district"; 
-	  	
-	  	// Inputs & outputs
-	    Modelica.Blocks.Interfaces.RealInput price "Price of kWh"; 
-	  	Modelica.Blocks.Interfaces.RealInput ihg_1 "Internal heat gains for building 1";
-	  	Modelica.Blocks.Interfaces.RealInput ihg_2 "Internal heat gains for building 2";
-	  	Modelica.Blocks.Interfaces.RealInput ihg_3 "Internal heat gains for building 3";
-	    Modelica.Blocks.Interfaces.RealInput Tamb;
-	    Modelica.Blocks.Interfaces.RealInput Tgnd;
-	    Modelica.Blocks.Interfaces.RealInput solGlobFac_E;
-	    Modelica.Blocks.Interfaces.RealInput solGlobFac_N;
-	    Modelica.Blocks.Interfaces.RealInput solGlobFac_S;
-	    Modelica.Blocks.Interfaces.RealInput solGlobFac_W;
-	    Modelica.Blocks.Interfaces.RealInput P_hvac_A;
-	    Modelica.Blocks.Interfaces.RealInput P_hvac_B;
-	    Modelica.Blocks.Interfaces.RealInput P_hvac_C;
-	    Modelica.Blocks.Interfaces.RealInput P_batt_A;
-	    Modelica.Blocks.Interfaces.RealInput P_batt_B;
-	    Modelica.Blocks.Interfaces.RealInput P_batt_C;
-	
-	  	// Models
-	  	ElectricNetwork.BuildingElectricPV buiA(Vn = Vs, A_s = 0.9, A_n = 0.0, A_e = 0.1, A_w = 0.0, P_solar = 6.0e5) "Building A";
-		ElectricNetwork.BuildingElectricPV buiB(Vn = Vs, A_s = 0.7, A_n = 0.0, A_e = 0.15, A_w = 0.15, P_solar = 5.5e5) "Building B";
-		ElectricNetwork.BuildingElectricPV buiC(Vn = Vs, A_s = 0.7, A_n = 0.0, A_e = 0.3, A_w = 0.0, P_solar = 4.5e5) "Building C";
-	    
-		ElectricNetwork.Source S(Vrms=Vs);
-		
-		ElectricNetwork.Line line1(R=R1, X=R1/10);
-		ElectricNetwork.Line line2(R=R2, X=R2/12);
-		ElectricNetwork.Line line3(R=R3, X=R3/10);
-			
-	equation
-	
-		// Energy and money to run the district
-		der(Money) = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2])*price/1000.0/3600.0;
-		der(E) = -(S.p.v[1]*S.p.i[1] + S.p.v[2]*S.p.i[2])/1000.0/3600.0;
-		
-	    // Connect the lines to the source
-		connect(S.p,     line1.a);
-		connect(line1.b, line2.a);
-		connect(line2.b, line3.a);
-		
-		// Connect each building and PVs
-		connect(buiA.p, line1.b);
-		connect(buiB.p, line2.b);
-		connect(buiC.p, line3.b);
-		
-		// Connect the external weather inputs to the buildings
-		buiA.price = price;      buiB.price = price;      buiC.price = price;
-		buiA.u[1] = ihg_1;       buiB.u[1] = ihg_2;       buiC.u[1] = ihg_3;
-		buiA.u[2] = Tamb;        buiB.u[2] = Tamb;        buiC.u[2] = Tamb;
-		buiA.u[3] = Tgnd;        buiB.u[3] = Tgnd;        buiC.u[3] = Tgnd;
-		buiA.u[4] = solGlobFac_E;buiB.u[4] = solGlobFac_E;buiC.u[4] = solGlobFac_E;
-		buiA.u[5] = solGlobFac_N;buiB.u[5] = solGlobFac_N;buiC.u[5] = solGlobFac_N;
-		buiA.u[6] = solGlobFac_S;buiB.u[6] = solGlobFac_S;buiC.u[6] = solGlobFac_S;
-		buiA.u[7] = solGlobFac_W;buiB.u[7] = solGlobFac_W;buiC.u[7] = solGlobFac_W;
-		
-		connect(buiA.P_hvac, P_hvac_A);
-		connect(buiB.P_hvac, P_hvac_B);
-		connect(buiC.P_hvac, P_hvac_C);
-		
-		connect(buiA.P_batt, P_batt_A);
-		connect(buiB.P_batt, P_batt_B);
-		connect(buiC.P_batt, P_batt_C);
-		
-	end District;
 
+	/* Optimization problem for district system: Minimize Energy
+	   Constraints:
+	   - Thermal comfort (for every building),
+	   - HVAC limits (for every building),
+	   - Battery limits (power and SOC for every battery in each building),
+	   - Voltages do not exceed +2% of nominal condition
+	  */
 	optimization OptimizationDistrict_E( objective = E(finalTime), startTime = 0.0, finalTime = 24.0*3600.0 )
 		extends ElectricNetwork.District(
-		E(free=true, initialGuess = 0.0, min = 0.0),
-		Money(free=false, initialGuess = 0.0, min = 0.0),
-		buiA(SOCstart(free = true, initialGuess = 0.5, min = 0.2, max = 1.0)),
-		buiB(SOCstart(free = true, initialGuess = 0.5, min = 0.2, max = 1.0)),
-		buiC(SOCstart(free = true, initialGuess = 0.5, min = 0.2, max = 1.0)));
-		parameter Real tol = 0.05;
+			E(free=true, initialGuess = 0.0, min = 0.0),
+			Money(free=false, initialGuess = 0.0, min = 0.0),
+			buiA(SOCstart(free = true, initialGuess = 0.5, min = 0.2, max = 1.0)),
+			buiB(SOCstart(free = true, initialGuess = 0.5, min = 0.2, max = 1.0)),
+			buiC(SOCstart(free = true, initialGuess = 0.5, min = 0.2, max = 1.0)));
 		parameter Real Pmax_charge = 1e5;
 		parameter Real Tmin = 273.15+20;
         parameter Real Tmax = 273.15+24;
@@ -890,9 +1133,6 @@ package ElectricNetwork
 		buiA.Vrms <= buiA.Vn*1.02;
 		buiB.Vrms <= buiA.Vn*1.02;
 		buiC.Vrms <= buiA.Vn*1.02;
-		buiA.Vn*0.95 <= buiA.Vrms;
-		buiA.Vn*0.95 <= buiB.Vrms;
-		buiA.Vn*0.95 <= buiC.Vrms;
 		
 		buiA.Tmix <= Tmax;
 		buiB.Tmix <= Tmax;
@@ -904,14 +1144,20 @@ package ElectricNetwork
 		
 	end OptimizationDistrict_E;
 	
+	/* Optimization problem for district system: Minimize Money
+	   Constraints:
+	   - Thermal comfort (for every building),
+	   - HVAC limits (for every building),
+	   - Battery limits (power and SOC for every battery in each building),
+	   - Voltages do not exceed +2% of nominal condition
+	  */
 	optimization OptimizationDistrict_Money( objective = Money(finalTime), startTime = 0.0, finalTime = 24.0*3600.0*6 )
 		extends ElectricNetwork.District(
-		E(free=true, initialGuess = 0.0, min = 0.0),
-		Money(free=false, initialGuess = 0.0, min = 0.0),
-		buiA(SOCstart(free = true, initialGuess = 0.5, min = 0.2, max = 1.0)),
-		buiB(SOCstart(free = true, initialGuess = 0.5, min = 0.2, max = 1.0)),
-		buiC(SOCstart(free = true, initialGuess = 0.5, min = 0.2, max = 1.0)));
-		parameter Real tol = 0.05;
+			E(free=true, initialGuess = 0.0, min = 0.0),
+			Money(free=false, initialGuess = 0.0, min = 0.0),
+			buiA(SOCstart(free = true, initialGuess = 0.5, min = 0.2, max = 1.0)),
+			buiB(SOCstart(free = true, initialGuess = 0.5, min = 0.2, max = 1.0)),
+			buiC(SOCstart(free = true, initialGuess = 0.5, min = 0.2, max = 1.0)));
 		parameter Real Pmax_charge = 1e5;
 		parameter Real Tmin = 273.15+20;
         parameter Real Tmax = 273.15+24;
@@ -952,9 +1198,6 @@ package ElectricNetwork
 		buiA.Vrms <= buiA.Vn*1.02;
 		buiB.Vrms <= buiA.Vn*1.02;
 		buiC.Vrms <= buiA.Vn*1.02;
-		//buiA.Vn*0.95 <= buiA.Vrms;
-		//buiA.Vn*0.95 <= buiB.Vrms;
-		//buiA.Vn*0.95 <= buiC.Vrms;
 		
 		buiA.Tmix <= Tmax;
 		buiB.Tmix <= Tmax;
@@ -965,6 +1208,72 @@ package ElectricNetwork
 		Tmin <= buiC.Tmix;
 		
 	end OptimizationDistrict_Money;
+
+	/* Optimization problem for district system: Minimize CO2
+	   Constraints:
+	   - Thermal comfort (for every building),
+	   - HVAC limits (for every building),
+	   - Battery limits (power and SOC for every battery in each building),
+	   - Voltages do not exceed +2% of nominal condition
+	  */
+	optimization OptimizationDistrict_CO2( objective = CO2(finalTime), startTime = 0.0, finalTime = 24.0*3600.0*6 )
+		extends ElectricNetwork.District(
+			E(free=true, initialGuess = 0.0, min = 0.0),
+			Money(free=false, initialGuess = 0.0, min = 0.0),
+			CO2(free=false, initialGuess = 0.0, min = 0.0),
+			buiA(SOCstart(free = true, initialGuess = 0.5, min = 0.2, max = 1.0)),
+			buiB(SOCstart(free = true, initialGuess = 0.5, min = 0.2, max = 1.0)),
+			buiC(SOCstart(free = true, initialGuess = 0.5, min = 0.2, max = 1.0)));
+		parameter Real Pmax_charge = 1e5;
+		parameter Real Tmin = 273.15+20;
+        parameter Real Tmax = 273.15+24;
+	constraint
+		Money(startTime)=0.0;
+
+		buiA.P_hvac <= 0;
+        -2.5e5 <= buiA.P_hvac;
+        
+        buiB.P_hvac <= 0;
+        -2.5e5 <= buiB.P_hvac;
+        
+        buiC.P_hvac <= 0;
+        -2.5e5 <= buiC.P_hvac;
+
+		buiA.batt.SOC <= 1.0;
+		0.2 <= buiA.batt.SOC;
+		
+		buiB.batt.SOC <= 1.0;
+		0.2 <= buiB.batt.SOC;
+		
+		buiC.batt.SOC <= 1.0;
+		0.2 <= buiC.batt.SOC;
+		
+		buiA.batt.P <= Pmax_charge;
+		-Pmax_charge <= buiA.batt.P;
+		
+		buiB.batt.P <= Pmax_charge;
+		-Pmax_charge <= buiB.batt.P;
+		
+		buiC.batt.P <= Pmax_charge;
+		-Pmax_charge <= buiC.batt.P;
+		
+		buiA.batt.SOC(finalTime) = buiA.batt.SOC(startTime);
+		buiB.batt.SOC(finalTime) = buiB.batt.SOC(startTime);
+		buiC.batt.SOC(finalTime) = buiC.batt.SOC(startTime);
+		
+		buiA.Vrms <= buiA.Vn*1.02;
+		buiB.Vrms <= buiA.Vn*1.02;
+		buiC.Vrms <= buiA.Vn*1.02;
+		
+		buiA.Tmix <= Tmax;
+		buiB.Tmix <= Tmax;
+		buiC.Tmix <= Tmax;   
+		
+		Tmin <= buiA.Tmix;
+		Tmin <= buiB.Tmix;
+		Tmin <= buiC.Tmix;
+		
+	end OptimizationDistrict_CO2;
 	
 	model ACnetworkSimple
 		ElectricNetwork.Source S(Vrms=220);
